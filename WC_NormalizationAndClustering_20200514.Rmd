@@ -1,0 +1,114 @@
+---
+title: "Whole Cell SVZ Seurat 3.0 Analysis - sctransform"
+author: "SAR, MAN, BM, ACS"
+date: "05/04/2020"
+---
+
+#setup
+```{r, warning=FALSE,echo=FALSE}
+library(future)
+library(Seurat)
+library(biomaRt)
+library(ggplot2)
+library(sctransform)
+library(reticulate)
+library(dplyr)
+library(viridis)
+
+setwd("/data4/marcos/WC - Mouse 2020/Normalization and Clustering")
+```
+We will start from the seurat object created on the Filtering and QC folder. The markdown file with the creation of the original Seurat object can be found at Stephanie's folder.
+
+Load data and create Seurat object
+```{r}
+## Dataset for analysis - look carefully for different versions; details about each one can be found on the last chunk of the QC notebook 
+
+load("/data4/marcos/WC - Mouse 2020/Filtering and QC/experiment.deMPx_filt_2020-05-13.Rdata")
+```
+Apply sctransform normalization
+
+Note that this single command replaces NormalizeData, ScaleData, and FindVariableFeatures.
+Transformed data will be available in the SCT assay, which is set as the default after running sctransform
+During normalization, we can also remove confounding sources of variation, for example, mitochondrial mapping percentage
+
+```{r}
+# run sctransform
+experiment.deMPx_filt <- SCTransform(experiment.deMPx_filt, verbose = T)
+```
+
+Perform dimensionality reduction by PCA and UMAP embedding
+```{r}
+# These are now standard steps in the Seurat workflow for visualization and clustering
+experiment.deMPx_filt <- RunPCA(experiment.deMPx_filt, npcs=100, verbose = T)
+ElbowPlot(
+  experiment.deMPx_filt, ndims = 100)
+```
+#clustering
+```{r}
+#before running this chunk, set plan() from future package to make sure you take advantage of multithreading on the server. IMPORTANT: check htop to determine how many threads you can use
+
+plan("multiprocess", workers = 24)
+
+experiment.deMPx_filt <- RunUMAP(experiment.deMPx_filt, reduction = "pca", dims = 1:100, verbose = T)
+#experiment.deMPx_filt <- RunTSNE(experiment.deMPx_filt, reduction = "pca", dims = 1:50)
+
+experiment.deMPx_filt <- FindNeighbors(experiment.deMPx_filt, dims = 1:100, verbose = T)
+experiment.deMPx_filt <- FindClusters(experiment.deMPx_filt, resolution = c(0.8, seq(0.5, 2, 0.5)), verbose = T)
+```
+```{r}
+DimPlot(experiment.deMPx_filt, group.by = "SCT_snn_res.0.8",label = F) + NoLegend()
+Idents(experiment.deMPx_filt) <- "SCT_snn_res.0.8"
+
+save(experiment.deMPx_filt, file = paste0("experiment.deMPx_filt_norm_", Sys.Date(), ".Rdata"))
+
+```
+
+```{r}
+allmarkers <- FindAllMarkers(experiment.deMPx_filt, only.pos = T, min.pct = 0.1, logfc.threshold = 0.1, test.use = "t")
+save(allmarkers, file = paste0("allmarkers.res.0.8_", Sys.Date(), ".Rdata"))
+
+#2020-05-04: 5% mithochondrial genes
+#2020-05-13: 10% mithochondrial genes
+```
+
+```{r}
+multi <- experiment.deMPx_filt$MULTI
+
+bar1.cells <- which(multi %in% "Bar1")
+bar2.cells <- which(multi %in% "Bar2")
+bar3.cells <- which(multi %in% "Bar3")
+bar4.cells <- which(multi %in% "Bar4")
+negative.cells <- which(multi %in% "Negative")
+
+experiment.deMPx_filt@meta.data[,"Sex"] <- "Unknown"
+experiment.deMPx_filt@meta.data[bar1.cells, "Sex"] <- "Male"
+experiment.deMPx_filt@meta.data[bar2.cells, "Sex"] <- "Male"
+experiment.deMPx_filt@meta.data[bar3.cells, "Sex"] <- "Female"
+experiment.deMPx_filt@meta.data[bar4.cells, "Sex"] <- "Female"
+
+save(experiment.deMPx_filt, file = paste0("experiment.deMPx_filt_norm_", Sys.Date(), ".Rdata"))
+DimPlot(experiment.deMPx_filt, split.by = "Sex", label = T)
+```
+
+#Assigning cell cycle stage
+```{r}
+convertHumanGeneList <- function(x){
+require("biomaRt")
+human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+genesV2 = getLDS(attributes = c("hgnc_symbol"), filters = "hgnc_symbol", values = x , mart = human, attributesL = c("mgi_symbol"), martL = mouse, uniqueRows=T)
+humanx <- unique(genesV2[, 2])
+# Print the first 6 genes found to the screen
+print(head(humanx))
+return(humanx)
+}
+s.genes <- convertHumanGeneList(cc.genes.updated.2019$s.genes)
+g2m.genes <- convertHumanGeneList(cc.genes.updated.2019$g2m.genes)
+experiment.deMPx_filt <- CellCycleScoring(experiment.deMPx_filt, s.features = s.genes, g2m.features = g2m.genes, set.ident = F)
+DimPlot(experiment.deMPx_filt, group.by = "Phase")
+save(experiment.deMPx_filt, file = paste0("experiment.deMPx_filt_norm_", Sys.Date(), ".Rdata"))
+#2020-05-04: 5% mitochondrial genes
+#2020-05-08: 5% mitochondrial genes + metadata(sex, cellcycle)
+#2020-05-08: 10% mitochondrial genes + metadata(sex, cellcycle)
+```
+

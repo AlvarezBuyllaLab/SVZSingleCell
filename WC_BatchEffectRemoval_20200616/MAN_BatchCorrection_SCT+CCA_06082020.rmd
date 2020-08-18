@@ -1,0 +1,102 @@
+---
+title: "Batch effect removal"
+output: html_notebook
+---
+
+#Checking the size of batch effect:
+```{r}
+#loading b1 and b2 cells ids:
+load("~/../../data4/marcos/WC - Mouse 2020/deMultiplex/troubleshooting/b1.cells.Rdata")
+load("~/../../data4/marcos/WC - Mouse 2020/deMultiplex/troubleshooting/b2.cells.Rdata")
+
+exp@meta.data[b1.cells,"well"] <- "well_1"
+exp@meta.data[b2.cells,"well"] <- "well_2"
+
+#removing cells that were filtered during qc steps
+good.cells<- colnames(exp@assays$SCT@data)
+exp@meta.data <- exp@meta.data[good.cells,]
+saveRDS(exp, file = paste0("experiment.deMPx_filt_norm_", Sys.Date(), ".rds"))
+
+Idents(exp) <- "SCT_snn_res.0.8"
+a <- DimPlot(exp, label = T ) + 
+  NoLegend() + 
+  coord_fixed(ratio = 1)
+b<- DimPlot(exp, reduction = "umap", label =F, group.by = "well") + NoLegend() + 
+  coord_fixed(ratio = 1)
+a+b
+
+summary<- exp@meta.data %>% group_by(SCT_snn_res.0.8, well) %>% summarise(counts = n()) %>% mutate(ratio = counts/sum(counts))
+
+                         
+c<-ggplot(summary, aes(SCT_snn_res.0.8, ratio, fill = well)) + geom_bar(stat = "identity") + theme_minimal() + labs(title = "Before SCTransform + CCA batch correction")
+
+a+b+c
+#There is a batch effect, mostly visible in the ependymal and C cell clusters
+```
+
+#Running the SCTransform workflow from Satija's lab
+```{r}
+#Loading the seurat object with the batch id already loaded in the metadata
+exp <- readRDS("~/../../data4/svz_10x/analysis/wc_2020/experiment.deMPx_filt_norm_2020-06-04.rds")
+
+options(future.globals.maxSize = 5000 * 1024^2)
+
+LV.list <- SplitObject(exp, split.by = "well")
+reference.list <- LV.list[c("well_1", "well_2")]
+head(reference.list)
+for (i in 1:length(x = LV.list)) {
+    LV.list[[i]] <- SCTransform(object = LV.list[[i]], verbose = FALSE)
+}
+```
+
+```{r}
+LV.features <- SelectIntegrationFeatures(object.list = LV.list, nfeatures = 2000)
+LV.list <- PrepSCTIntegration(object.list = LV.list, anchor.features = LV.features, 
+    verbose = FALSE)
+LV.anchors <- FindIntegrationAnchors(object.list = LV.list, normalization.method = "SCT", 
+    anchor.features = LV.features, verbose = FALSE)
+exp.int.new <- IntegrateData(anchorset = LV.anchors, normalization.method = "SCT", 
+    verbose = FALSE)
+
+exp.int.new <- RunPCA(exp.int.new, verbose = T, npcs = 75)
+exp.int.new <- RunUMAP(exp.int.new, dims = 1:75)
+exp.int.new <- FindNeighbors(exp.int.new, dims = 1:75)
+exp.int.new <-FindClusters(exp.int.new)
+```
+#test
+```{r}
+Idents(exp) <- "SCT_snn_res.0.8"
+Idents(exp.int.old) <- "SCT_snn_res.0.8"
+Idents(exp.int.2000) <- "SCT_snn_res.0.8"
+Idents(exp.int.3000) <- "SCT_snn_res.0.8"
+Idents(exp.int.2000.30dims) <- "SCT_snn_res.0.8"
+Idents(exp.int.3000.30dims) <- "SCT_snn_res.0.8"
+Idents(exp.int.new) <- "integrated_snn_res.0.8"
+
+a<- DimPlot(exp, label = T)+ coord_fixed() + NoAxes() + NoLegend() + labs(title = "Pre-integration")
+b<- DimPlot(exp.int.old, label = T)+ coord_fixed() + NoAxes() + NoLegend()
+c<- DimPlot(exp.int.2000.50dims, label = T)+ coord_fixed() + NoAxes() + NoLegend() + labs(title = "2000 genes Integration/50 dims UMAP")
+d<- DimPlot(exp.int.3000.50dims, label = T)+ coord_fixed() + NoAxes() + NoLegend() + labs(title = "3000 genes Integration/50 dims UMAP")
+e<- DimPlot(exp.int.2000.30dims, label = T)+ coord_fixed() + NoAxes() + NoLegend() + labs(title = "2000 genes Integration/30 dims UMAP")
+f<- DimPlot(exp.int.3000.30dims, label = T)+ coord_fixed() + NoAxes() + NoLegend() + labs(title = "3000 genes Integration/30 dims UMAP")
+g<- DimPlot(exp.int.new, label = T)+ coord_fixed() + NoAxes() + NoLegend() + labs(title = "New plot with 100 dims")
+a+e+c+g+f+d+plot_layout(ncol = 3)
+
+
+```
+
+
+#Downstream analysis
+```{r}
+
+
+Idents(exp.int) <- "SCT_snn_res.0.8"
+#saveRDS(exp, file = paste0("experiment.SCT+CCA_integrated_", Sys.Date(), ".rds"))
+
+
+#plotting
+a <- DimPlot(exp.int, group.by = "well", label = F) + coord_fixed()
+b <- DimPlot(exp.int, label = T) + NoLegend() + coord_fixed()
+b+a 
+```
+
