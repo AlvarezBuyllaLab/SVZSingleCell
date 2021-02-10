@@ -1,12 +1,15 @@
 # SVZSingleCell
 
-This is a repository for R code used to generate datasets used in the 2020 manuscript, as well as code to generate the manuscript figure panels.
+This is a repository for R code used to generate datasets used in the 2021 manuscript, as well as code to generate the manuscript figure panels.
+
+Files will be made available as the manuscript undergoes peer review - please check back if a file you are looking for isn't available yet.
 
 ### The manuscript can be found at: 
-Open Access:
+BioRxiv: 
 
-### Raw count matricies and processed Seurat data objects are deposited at the following GEO links:
-Whole cell V-SVZ:
+### Interactive Single-Cell Data is published at:
+UCSC Single Cell Browser: https://svzneurogeniclineage.cells.ucsc.edu
 
-Single nucleus V-SVZ:
+### Raw count matricies and processed Seurat data objects are deposited at the following GEO link:
+https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE165555
 
