@@ -24,16 +24,16 @@ sNucRNA-Seq dataset: Preprocessing/sNucRNASeq_ObjectCreation/
 
 ### Figure 1 & Supplements
 
-Supplement 3: Analysis/sNucRNASeq_Fig1Supplement3.Rmd
+Supplement 3: [Analysis/sNucRNASeq_Fig1Supplement3.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/sNucRNASeq_Fig1Supplement3.Rmd)
 
 ### Figure 2
 
 
 ### Figure 3 & Supplement
-Analysis/BCellsAnalysis_Fig3_Fig3Supplement1.Rmd
+[Analysis/BCellsAnalysis_Fig3_Fig3Supplement1.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/BcellsClusterAnalysis_Fig3_Fig3Supplement1.Rmd)
 
 ### Figure 5 & Supplement
 
-Analysis/Acell_NucleiLabelTransfer_Fig5.Rmd
+[Analysis/Acell_NucleiLabelTransfer_Fig5.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/Acell_NucleiLabelTransfer_Fig5.Rmd)
 
 ### Figure 6 & Supplement
