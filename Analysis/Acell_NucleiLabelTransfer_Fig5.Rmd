@@ -1,0 +1,216 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+title: "A cell Label Transfer"
+author: "SAR"
+date: "20200827"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=T}
+knitr::opts_knit$set(root.dir = '/Plots')
+```
+
+
+
+
+
+#Load packages
+```{r}
+
+#devtools::install_github(repo = "satijalab/seurat", ref = "develop")
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+library(viridis)
+
+
+
+#load Seurat objects:
+nucleus.integrated <- readRDS("sNucSeq.rds")
+DefaultAssay(nucleus.integrated) <- "SCT"
+Idents(nucleus.integrated) <- "integrated_snn_res.2"
+
+experiment.WC <- readRDS("scSeq.rds")
+
+```
+
+##Subset SVZ A cell clusters
+```{r}
+DimPlot(nucleus.integrated, label=T)
+table(nucleus.integrated@active.ident)
+
+nucleus.lineage <- subset(nucleus.integrated, idents =c(12,29))
+table(nucleus.lineage@active.ident)
+
+DimPlot(nucleus.lineage, label=T)
+ggsave(paste("NucSeqIntegrated_Acells_DimPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 12, height = 8, units = "in", dpi=300)
+
+
+
+experiment.A <- subset(experiment.WC, idents = c(4,6,0,1,15) )
+DimPlot(experiment.A, label=T)
+ggsave(paste("WC_Acells_DimPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 12, height = 8, units = "in", dpi=300)
+
+```
+
+
+##SCTransform Whole cell A cells
+```{r}
+experiment.A <- SCTransform(experiment.A)
+```
+
+#Split nuclei A cells by region
+```{r}
+nucleus.lineage
+nucleus.cellsList <- SplitObject(nucleus.lineage, split.by = "Method")
+nucleus.cellsList
+```
+
+##Feature 25-50th percentile cutoff per region
+```{r}
+#AV
+AV_Q<-quantile(nucleus.cellsList[[1]]$nFeature_SCT)
+AV_Q
+AV_Q[[2]]
+AV_Q[[4]]
+
+table(nucleus.cellsList[[1]]@active.ident)
+
+nucleus.cellsList[[1]] <- subset(nucleus.cellsList[[1]], subset = `nFeature_SCT` > AV_Q[[2]])
+table(nucleus.cellsList[[1]]@active.ident)
+
+nucleus.cellsList[[1]] <- subset(nucleus.cellsList[[1]], subset = `nFeature_SCT` < AV_Q[[4]])
+table(nucleus.cellsList[[1]]@active.ident)
+
+
+#AD
+AD_Q<-quantile(nucleus.cellsList[[2]]$nFeature_SCT)
+AD_Q
+AD_Q[[2]]
+AD_Q[[4]]
+
+table(nucleus.cellsList[[2]]@active.ident)
+
+nucleus.cellsList[[2]] <- subset(nucleus.cellsList[[2]], subset = `nFeature_SCT` > AD_Q[[2]])
+table(nucleus.cellsList[[2]]@active.ident)
+
+nucleus.cellsList[[2]] <- subset(nucleus.cellsList[[2]], subset = `nFeature_SCT` < AD_Q[[4]])
+table(nucleus.cellsList[[2]]@active.ident)
+
+
+#PD
+PD_Q<-quantile(nucleus.cellsList[[3]]$nFeature_SCT)
+PD_Q
+PD_Q[[2]]
+PD_Q[[4]]
+
+table(nucleus.cellsList[[3]]@active.ident)
+
+nucleus.cellsList[[3]] <- subset(nucleus.cellsList[[3]], subset = `nFeature_SCT` > PD_Q[[2]])
+table(nucleus.cellsList[[3]]@active.ident)
+
+nucleus.cellsList[[3]] <- subset(nucleus.cellsList[[3]], subset = `nFeature_SCT` < PD_Q[[4]])
+table(nucleus.cellsList[[3]]@active.ident)
+
+
+#PV
+PV_Q<-quantile(nucleus.cellsList[[4]]$nFeature_SCT)
+PV_Q
+PV_Q[[2]]
+PV_Q[[4]]
+
+table(nucleus.cellsList[[4]]@active.ident)
+
+nucleus.cellsList[[4]] <- subset(nucleus.cellsList[[4]], subset = `nFeature_SCT` > PV_Q[[2]])
+table(nucleus.cellsList[[4]]@active.ident)
+
+nucleus.cellsList[[4]] <- subset(nucleus.cellsList[[4]], subset = `nFeature_SCT` < PV_Q[[4]])
+table(nucleus.cellsList[[4]]@active.ident)
+
+
+nucleus.cellsList
+
+VlnMerge <-  merge(nucleus.cellsList[[1]], y= c(nucleus.cellsList[[2]], nucleus.cellsList[[3]], nucleus.cellsList[[4]]), merge.data = T)
+VlnPlot(VlnMerge, features=c("nFeature_SCT", "nCount_SCT"),split.by = "Method", split.plot=T,pt.size = 0, combine=T)
+ggsave(paste("NucSeq_Acell_FeatQuantFilt_nFeatnCount_VlnPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 12, height = 8, units = "in", dpi=300)
+```
+
+##Region Downsample to Least Cell Number
+```{r}
+
+
+#downsample each to match region with least cells
+
+nCells=128
+nucleus.cellsList[[1]] = subset(nucleus.cellsList[[1]], cells = sample(Cells(nucleus.cellsList[[1]]), nCells))
+nucleus.cellsList[[2]] = subset(nucleus.cellsList[[2]], cells = sample(Cells(nucleus.cellsList[[2]]), nCells))
+nucleus.cellsList[[3]] = subset(nucleus.cellsList[[3]], cells = sample(Cells(nucleus.cellsList[[3]]), nCells))
+nucleus.cellsList[[4]] = subset(nucleus.cellsList[[4]], cells = sample(Cells(nucleus.cellsList[[4]]), nCells))
+
+#Add D/V metadata
+nucleus.cellsList[[1]]$DV <- "Ventral"
+nucleus.cellsList[[2]]$DV <- "Dorsal"
+nucleus.cellsList[[3]]$DV <- "Dorsal"
+nucleus.cellsList[[4]]$DV <- "Ventral"
+
+#merge back to one object
+nucleus.Sampled <- merge(nucleus.cellsList[[1]], y= c(nucleus.cellsList[[2]], nucleus.cellsList[[3]], nucleus.cellsList[[4]]), merge.data = T)
+table(nucleus.Sampled$DV)
+```
+
+##Find Anchors
+```{r}
+
+nucleus.Sampled <- SCTransform(nucleus.Sampled)
+nucleus.Sampled
+
+
+transfer.anchors <- FindTransferAnchors(reference = nucleus.Sampled, reference.assay = "SCT", query = experiment.A, query.assay = "SCT",  normalization.method = "SCT", npcs=30, project.query=T, dims = 1:30)
+
+```
+
+
+
+#Dorsal Ventral Transfer Data
+```{r}
+predictionsDV <- TransferData(anchorset = transfer.anchors, refdata = nucleus.Sampled$DV, dims = 1:30)
+experiment.A <- AddMetaData(experiment.A, metadata = predictionsDV)
+
+
+```
+
+
+##Save Predictions Metadata
+```{r}
+
+saveRDS(predictionsDV,file=paste("WC_AcellTransferLabels_DVNucMetaData_DownSampledNuclei_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+
+```
+
+
+
+
+##Plot Using Scores
+```{r}
+#Make color palette with premade ColorBrewer palette PiYG
+colsDV <- brewer_pal(11, "PiYG", direction = -1)
+
+
+#Ventral Scores:
+FeaturePlot(experiment.A,features = "Ventral_Score_Acells", cols = colsDV(11)[6:11], pt.size = 0.2, order=F) +  NoAxes() + coord_fixed() + xlim(-4.5, 3.5) + ylim(-14, -2)
+ggsave(paste("Fig5_ptSmall_Acell_VentralScore_FeaturePlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 4, units = "in", dpi=300)
+
+
+
+#Dorsal Scores:
+colsDV <- brewer_pal(11, "PiYG", direction = 1)
+FeaturePlot(experiment.A,features = "Dorsal_Score_Acells", cols = colsDV(11)[6:11], pt.size = 0.2, order=F) +  NoAxes() + coord_fixed() + xlim(-4.5, 3.5) + ylim(-14, -2)
+ggsave(paste("Fig5_ptSmall_Acell_DorsalScore_FeaturePlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 4, units = "in", dpi=300)
+
+
+
+```

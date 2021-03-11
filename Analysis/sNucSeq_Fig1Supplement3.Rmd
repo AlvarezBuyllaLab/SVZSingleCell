@@ -1,0 +1,403 @@
+---
+title: "NucSeq ClusterID Supplemental Figure"
+author: "SAR"
+date: "20200915"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=T}
+knitr::opts_knit$set(root.dir = '/Plots')
+```
+
+
+#Load packages
+```{r}
+
+#devtools::install_github(repo = "satijalab/seurat", ref = "develop")
+#install.packages('Seurat')
+library(knitr)
+library(ggplot2) 
+library(reticulate)
+library(Seurat)
+library(R.utils)
+library(dplyr)
+library(tibble)
+library(viridis)
+library(patchwork)
+
+
+#load single nucleus dataset:
+nucleus.integrated <- readRDS("sNucSeq.rds")
+
+DefaultAssay(nucleus.integrated) <- "SCT"
+
+Idents(nucleus.integrated) <- "integrated_snn_res.2"
+
+simple <- NoAxes() + NoLegend() 
+VlnPlot(nucleus.integrated, features="nCount_RNA",group.by="Method", split.by = "Method", pt.size = 0)
+```
+
+#Data DimPlot
+```{r}
+DimPlot(nucleus.integrated, label=T) + coord_fixed() + NoLegend()
+ggsave("nuclei.dimplot.png", scale =2, width = 4, height = 3)
+```
+
+#QC Region Plots
+```{r}
+#Region
+
+#sort dorsal and ventral regions:
+nucleus.integrated@meta.data$Method <- factor(nucleus.integrated@meta.data$Method, levels = c("AD Nuclei", "PD Nuclei", "AV Nuclei", "PV Nuclei"))
+
+bc.palette <- c("#4dac26", "#b8e186", "#f1b6da",  "#d01c8b", "grey")
+
+regions.dimplot <- DimPlot(nucleus.integrated, group.by = "Method", shuffle=T, cols = bc.palette) + coord_fixed() + simple
+ggsave("regions.dimplot.sort.png", scale =2, width = 3, height = 3)
+
+split.by.regions <-DimPlot(nucleus.integrated, split.by = "Method", pt.size = 0.1, combine = T) + simple + coord_fixed()
+ggsave("split.by.region.sort.png", scale =2, width = 5, height = 3)
+
+
+
+bc.summary<- nucleus.integrated@meta.data %>% group_by(integrated_snn_res.2, Method) %>% summarise(counts = n()) %>% mutate(ratio = counts/sum(counts))
+
+
+
+region.ratios <- ggplot(bc.summary, aes(integrated_snn_res.2, ratio, fill = Method)) + geom_bar(stat = "identity") + scale_fill_manual(values=bc.palette) + theme_minimal() + labs(title = "Ratio of cells coming from different samples")
+ggsave("region.ratio.sort.png", scale =2, width = 8, height = 3)
+
+(regions.dimplot+split.by.regions)/region.ratios
+ggsave("region.sort.png", scale =2, width = 6, height = 3)
+```
+
+#Nucleus Cell-types - complex
+```{r}
+#rename clusters
+DimPlot(nucleus.integrated, label=T) + coord_fixed() + NoLegend()
+experiment <- RenameIdents(nucleus.integrated, 
+                           '0' = 'SN-D1', 
+                           '1'= 'SN-D2',
+                           '2'= 'SN-D2',
+                           '3' = 'SN-D1',
+                           '4'= 'Astrocytes',
+                           '5'= 'SN-D1',
+                           '6'= 'SN-D2',
+                           '7'= 'B cells',
+                           '8'= 'Ependymal',
+                           '9' = 'SN-D2',
+                           '10'= 'Oligodendrocyte',
+                           '11' = 'SN-D1',
+                           '12'= 'A cells', 
+                           '13'= 'Ependymal',
+                           '14'= 'Tac1 SN-D1',
+                           '15'= 'PTHLH Interneuron',
+                           '16' = 'SN-D2',
+                           '17'= 'Interneuron1',
+                           '18'= 'PDYN Interneuron', 
+                           '19'='Interneuron2',
+                           '20'= 'Microglia',
+                           '21'='OPC/Oligodendrocyte',
+                           '22'= 'Ependymal',
+                           '23'= 'Dividing/C cells',
+                           '24'= 'SN-D2',
+                           '25'= 'SN-D2',
+                           '26' = 'OPRM1 Neuron',
+                           '27' = 'SN-D1' ,
+                           '28' = 'Endothelial',
+                           '29'=  'A cells',
+                           '30' = 'Interneuron1' ,
+                           '31' = 'Ependymal',
+                           '32' = 'SST Interneuron',
+                           '33' = 'VGLUT1 Neuron',
+                           '34' = 'CHAT Neuron',
+                           '35' = 'Pericyte/VSMC',
+                           '36' = 'TH Interneuron',
+                           '37' = 'OPC/Oligodendrocyte',
+                           '38' = 'SN-D2',
+                           '39' = 'VGLUT2 Neuron' ,
+                           '40' = 'OPC/Oligodendrocyte',
+                           '41' = 'Vasc Leptomeningeal'
+                            )
+
+DimPlot(experiment, label.size = 4,  label=T, repel=T) + coord_fixed() + NoLegend()
+ggsave("nuclei.celltype.dimplot.png", scale =2, width = 4, height = 3)
+
+DimPlot(experiment, label.size = 4,  label=F) + coord_fixed()+ NoLegend()
+ggsave("nuclei.celltype.nolabel.dimplot.png", scale =2, width = 4, height = 3)
+```
+#Nucleus Cell-types - simple
+```{r}
+#rename clusters
+DimPlot(nucleus.integrated, label=T) + coord_fixed() + NoLegend()
+experiment <- RenameIdents(nucleus.integrated, 
+                           '0' = 'SN-D1', 
+                           '1'= 'SN-D2',
+                           '2'= 'SN-D2',
+                           '3' = 'SN-D1',
+                           '4'= 'Astrocytes',
+                           '5'= 'SN-D1',
+                           '6'= 'SN-D2',
+                           '7'= 'B cells',
+                           '8'= 'Ependymal',
+                           '9' = 'SN-D2',
+                           '10'= 'Oligo',
+                           '11' = 'SN-D1',
+                           '12'= 'A cells', 
+                           '13'= 'Ependymal',
+                           '14'= 'SN-D1',
+                           '15'= 'IN',
+                           '16' = 'SN-D2',
+                           '17'= 'IN',
+                           '18'= 'IN', 
+                           '19'= 'IN',
+                           '20'= 'Microglia',
+                           '21'='OPC/Oligo',
+                           '22'= 'Ependymal',
+                           '23'= 'Mitosis',
+                           '24'= 'SN-D2',
+                           '25'= 'SN-D2',
+                           '26' = 'IN',
+                           '27' = 'SN-D1' ,
+                           '28' = 'Endothelial',
+                           '29'=  'A cells',
+                           '30' = 'IN' ,
+                           '31' = 'Ependymal',
+                           '32' = 'IN',
+                           '33' = 'EN',
+                           '34' = 'IN',
+                           '35' = 'Pericyte/VSMC',
+                           '36' = 'IN',
+                           '37' = 'OPC/Oligo',
+                           '38' = 'SN-D2',
+                           '39' = 'EN' ,
+                           '40' = 'OPC/Oligo',
+                           '41' = 'Meningeal'
+                            )
+
+DimPlot(experiment, label.size = 4,  label=T, repel=T) + coord_fixed() + NoLegend()
+ggsave("nuclei.Simple.celltype.dimplot.png", scale =2, width = 3, height = 3)
+
+DimPlot(experiment, label.size = 4,  label=F) + coord_fixed()+ NoLegend()
+ggsave("nuclei.Simple.celltype.nolabel.dimplot.png", scale =2, width = 3, height = 3)
+```
+
+#DotPlot Features
+```{r}
+#Reorder clusters for DotPlot
+levels(experiment@active.ident)
+experiment@active.ident <- factor(experiment@active.ident, levels = c( "Ependymal", "Astrocytes","B cells", "Dividing/C cells", "A cells", "OPC/Oligodendrocyte",  "Oligodendrocyte", "SN-D1", "Tac1 SN-D1", "SN-D2","CHAT Neuron", "PTHLH Interneuron", "PDYN Interneuron", "OPRM1 Neuron", "SST Interneuron", "TH Interneuron","Interneuron1","Interneuron2",  "VGLUT1 Neuron","VGLUT2 Neuron", "Microglia", "Endothelial", "Pericyte/VSMC", "Vasc Leptomeningeal"  ))
+
+#Cluster markers
+features <- c("Dnah11",  "Cd24a", "Cxcl14", "Slc1a3", "Top2a" ,  "Dcx"  ,   "Cspg4" ,  "Mbp" ,    "Drd1" ,   "Drd2" ,"Chat"   , "Pthlh", "Pdyn", "Oprm1", "Sst", "Th",  "Gad1", "Slc17a7", "Slc17a6" , "P2ry12" , "Pecam1" , "Pdgfrb" , "Slc47a1")
+features <- rev(features)
+features
+
+DotPlot(experiment, features=features, dot.scale = 9)+ 
+  scale_color_viridis_c() + 
+  cowplot::theme_cowplot() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), axis.text.y = element_text(angle = 0, vjust = 0.5, hjust=1)) +
+  ylab('') + xlab('') + coord_flip()
+ggsave("nucClusters.fullLabel.DotPlot.png", scale =2, width = 5, height = 4)
+
+```
+
+
+
+#NucSeq vs. Whole Cell (WC) statistics
+```{r}
+#create merged object of NucSeq and WC
+experimentWC <- readRDS('scSeq.rds')
+experimentWC <- AddMetaData(experimentWC, "WholeCell", col.name = "SeqMethod")
+
+experiment <- merge(experimentWC, nucleus.integrated)
+
+#sort dorsal and ventral regions:
+
+experiment@meta.data$Method <- factor(experiment@meta.data$Method, levels = c("AD Nuclei", "PD Nuclei", "AV Nuclei", "PV Nuclei"))
+```
+
+
+##nCount nFeature Plots
+```{r}
+
+count <- VlnPlot(experiment, features="nCount_RNA", group.by = "SeqMethod", split.by = "Method", pt.size = 0, cols = bc.palette)
+feature <- VlnPlot(experiment, features="nFeature_RNA", group.by = "SeqMethod", split.by = "Method", pt.size = 0, cols = bc.palette)
+
+(count+NoLegend())/feature
+ggsave("nCount.nFeature.Vlnplot.png", scale =2, width = 3, height = 7)
+
+
+#median Values
+medRNAnuc <-  median(nucleus.integrated@meta.data$nCount_RNA)
+medRNAnuc
+
+medRNAwc <-  median(experimentWC@meta.data$nCount_RNA)
+medRNAwc
+
+medFeatnuc <- median(nucleus.integrated@meta.data$nFeature_RNA)
+medFeatnuc
+
+medFeatwc <- median(experimentWC@meta.data$nFeature_RNA)
+medFeatwc
+
+
+m <- matrix(c(medRNAnuc, medRNAwc, medFeatnuc, medFeatwc), nrow = 2, dimnames = list(c("nuclei", "whole cell"), c("median nCount", "median nFeature")))
+
+m <- rbind(m, c( medRNAwc/medRNAnuc, medFeatwc/medFeatnuc))
+
+rownames(m)[3] <- "foldChange"
+
+m
+```
+
+##nCount Plot of Nuclei Clusters
+```{r}
+VlnPlot(nucleus.integrated, features= "nCount_RNA", pt.size = 0) + NoLegend()
+ggsave("nCount.nucClusters.Vlnplot.png", scale =2, width = 6, height = 3)
+```
+
+##Percent Cell Types Calculations
+```{r}
+#Nuclei Region Count
+ADcount <- nucleus.integrated@meta.data %>%  filter(Method=="AD Nuclei")  %>% nrow()
+AVcount <- nucleus.integrated@meta.data %>%  filter(Method=="AV Nuclei")  %>% nrow()
+PDcount <- nucleus.integrated@meta.data %>%  filter(Method=="PD Nuclei")  %>% nrow()
+PVcount <- nucleus.integrated@meta.data %>%  filter(Method=="PV Nuclei")  %>% nrow()
+
+countTable <- rbind(ADcount, AVcount, PDcount, PVcount)
+
+colnames(countTable) <- "cellCount"
+
+#Whole Cell count
+WCcount <- experimentWC@meta.data %>%  filter(SeqMethod=="WholeCell")  %>% nrow()
+
+countTable <- rbind(countTable, WCcount)
+
+WCNeuroLin <- experimentWC %>% WhichCells(idents=c(5,14,22,13,0,1,12, 8 ,10, 6, 17,15, 16,4)) %>% length()
+nucNeuroLin <- nucleus.integrated %>% WhichCells(idents=c(7,23,12,29)) %>% length()
+
+WCNeurons <- experimentWC %>% WhichCells(idents=c(28,27,31)) %>% length()
+nucNeurons <- nucleus.integrated %>% WhichCells(idents=c(34,15,36,32,17,30,18,14,6,16,9,1,2,24,25,38,3,0,11,5,27,26,33,39)) %>% length()
+  
+WCGlia <- experimentWC %>% WhichCells(idents=c(23,32,3,34,2,30,21,26,29,36,24,11,25,7,20,19,18,33,9,35)) %>% length()
+nucGlia <- nucleus.integrated %>% WhichCells(idents=c(10,8,31,22,13,21,37,40,20,28,41,4)) %>% length()
+
+WCOPC <- experimentWC %>% WhichCells(idents=c(35)) %>% length()
+nucOPC <- nucleus.integrated %>% WhichCells(idents=c(21, 40)) %>% length()
+
+WCnewOligo <- experimentWC %>% WhichCells(idents=c(9), expression= Plp1 < 1.79) %>% length()
+nucnewOligo <- nucleus.integrated %>% WhichCells(idents=c(37)) %>% length()
+
+WCMatOligo <- experimentWC %>% WhichCells(idents=c(9), expression=Plp1 > 1.79) %>% length()
+nucMatOligo <- nucleus.integrated %>% WhichCells(idents=c(10)) %>% length()
+
+
+
+countTable <- rbind(countTable, WCNeuroLin, nucNeuroLin, WCNeurons, nucNeurons, WCGlia, nucGlia, WCOPC, nucOPC, WCnewOligo, nucnewOligo, WCMatOligo, nucMatOligo)
+
+saveRDS(countTable, "WC_nuc_celltypes_countTable.rds")
+```
+
+
+#DimPlot Nuc Neurogenic Lineage
+```{r}
+nucleus.lineage <- subset(nucleus.integrated, idents = c(7,23,12,29))
+DimPlot(nucleus.lineage, label=T) + coord_fixed() + NoLegend()
+
+
+nucleus.lineage <- RenameIdents(nucleus.lineage, 
+                           '7'= 'B cells',
+                           '12'= 'A cells', 
+                           '23'= 'Dividing/C cells',
+                           '29'=  'A cells'
+                            )
+
+DimPlot(nucleus.lineage, label=T, repel=T) + coord_fixed() + NoLegend()
+ggsave("nuclei.lineage.dimplot.png", scale =2, width = 3, height = 3)
+```
+
+
+##Nuc CellTypes Pie Chart
+```{r}
+experiment <- AddMetaData(experiment, experiment@active.ident, col.name="celltype")
+
+
+nuc.celltype.summary<- experiment@meta.data %>% group_by(celltype) %>% summarise(counts = n()) %>% mutate(percent = round(counts/sum(counts)*100,2))
+head(nuc.celltype.summary)
+saveRDS(nuc.celltype.summary, "NucSeqCellTypePctSummary.rds")
+
+nuc.celltype.summary$celltype <- factor(nuc.celltype.summary$celltype, levels = c("B cells", "Mitosis", "A cells", "Ependymal",  "Astrocytes", "Microglia", "OPC/Oligo", "Oligo", "Endothelial", "Pericyte/VSMC", "Meningeal", "EN", "IN", "SN-D2", "SN-D1"))
+
+nuc.celltype.pie <- ggplot(nuc.celltype.summary, aes(x="", percent, fill = celltype)) + geom_bar(stat = "identity", color = "white") + scale_fill_manual(values = viridis(n=nrow(nuc.celltype.summary)+10, option="A", begin =0.1, end=0.8,direction = -1)) +
+   coord_polar("y", direction=-1) + theme_minimal() + labs(title = "Celltypes in snSeq")
+
+nuc.celltype.pie
+ggsave("nuclei.Simple.celltype.piechart.png", scale =2, width = 3, height = 3)
+```
+
+##Rename wcSeq Clusters
+```{r}
+experiment.WC <- RenameIdents(experimentWC,
+"3"="Ependymal cells",
+"23"="Ependymal cells",
+"32"="Ependymal cells",
+"34"="Ependymal cells",
+"2"="Ependymal cells",
+"30"="Ependymal cells",                                    
+"21"="Astrocytes",
+"26"="Astrocytes",
+"29"="Astrocytes",                                   
+"14"="B cells",
+"5"="B cells",
+"22"="B cells",
+"13"="B cells",
+"12"="C cells", 
+"10"="Mitosis",
+"16"="Mitosis",
+"8"="Mitosis",
+"17"="Mitosis",
+"15"="A cells",
+"6"="A cells",
+"4"="A cells",
+"0"="A cells",
+"1"="A cells",
+"28"="GABAergic neurons",
+"27"="GABAergic neurons",
+"31"="Neuron",
+"9"="OPC/Oligo",
+"35"="OPC/Oligo",
+"36"="Microglia",
+"25"="Microglia",
+"24"="Microglia",
+"11"="Microglia",
+"7"="Endothelial cells",
+"20"="Endothelial cells",
+"19"="Endothelial cells",
+"18"="Pericytes/VSMC",
+"33"="VLMC1"
+)
+
+```
+
+##WC CellTypes Pie Chart
+```{r}
+experiment.WC <- AddMetaData(experiment.WC, experiment.WC@active.ident, col.name="celltype")
+
+
+wc.celltype.summary<- experiment.WC@meta.data %>% group_by(celltype) %>% summarise(counts = n()) %>% mutate(percent = round(counts/sum(counts)*100,2))
+
+head(wc.celltype.summary)
+
+wc.celltype.summary$celltype <- factor(wc.celltype.summary$celltype, levels = c("B cells", "C cells", "Mitosis", "A cells", "Ependymal cells",  "Astrocytes", "Microglia", "OPC/Oligo",  "Endothelial cells", "Pericytes/VSMC", "VLMC1", "GABAergic neurons", "Neuron"))
+
+wc.celltype.pie <- ggplot(wc.celltype.summary, aes(x="", percent, fill = celltype)) + geom_bar(stat = "identity", color = "white") + scale_fill_manual(values = viridis(n=nrow(wc.celltype.summary)+10, option="A", begin =0.1, end=0.8,direction = -1)) +
+   coord_polar("y", direction=-1) + theme_minimal() + labs(title = "Celltypes in wcSeq")
+
+wc.celltype.pie
+ggsave("wc.Simple.celltype.piechart.png", scale =2, width = 3, height = 3)
+
+```
+

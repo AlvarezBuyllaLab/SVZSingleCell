@@ -1,0 +1,578 @@
+---
+title: "B cell Clusters Analysis"
+author: "SAR"
+date: "20201118"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=T}
+knitr::opts_knit$set(root.dir = '../Plots')
+```
+
+
+#Load packages
+```{r}
+
+#devtools::install_github(repo = "satijalab/seurat", ref = "develop")
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+library(viridis)
+library(patchwork)
+library(VennDiagram)
+```
+
+#Load Objects
+```{r}
+
+experiment <- readRDS('scSeq.rds')
+experiment
+
+#subset NSC cells
+experiment.NSC <- subset(experiment, idents=c(14, 5, 22, 13, 12, 10, 16, 8, 17, 15, 6, 4, 0, 1))
+
+```
+
+##Make B cell metadata
+```{r}
+B.metadata <- experiment.NSC$integrated_snn_res.1.5
+head(B.metadata)
+B.metadata <- as.data.frame(B.metadata)
+
+B.metadata$cell <- rownames(B.metadata)
+
+B.metadata <- B.metadata %>% dplyr::rename(Bcluster = B.metadata)
+B.metadata <- B.metadata %>% filter(Bcluster %in% c(14,5,22))
+head(B.metadata)
+
+rownames(B.metadata) <- B.metadata$cell
+B.metadata <- B.metadata %>% dplyr::select(Bcluster)
+head(B.metadata)
+```
+#Figure 3 Supplement 1
+##Plot B cell clusters on Neurogenic lineage object
+
+```{r}
+experiment.NSC <- AddMetaData(experiment.NSC, metadata = B.metadata)
+
+
+#colors from Fig 2, neurogenic lineage (ACS)
+FillCols = c("dodgerblue3","steelblue1","deepskyblue1")
+
+
+DimPlot(experiment.NSC, group.by="Bcluster", label = T, cols = FillCols) + NoLegend() + NoAxes() + coord_fixed() +xlim(-6,7)  + ylim(-15,8)
+
+ggsave(paste("WC_NSC_BcellCluster_DimPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 6, units = "in", dpi=300)
+```
+
+
+##Bcell Marker Venn Diagram
+###Genes Common betweet B_cell clusters
+```{r}
+all_experiment_genes <- AverageExpression(experiment)
+
+all_Bcell_genes <- dplyr::select(all_experiment_genes$SCT, "14", "5", "22" )
+all_Bcell_genes <- all_Bcell_genes %>% mutate(Sum = rowSums(.)) %>% mutate(gene = rownames(all_Bcell_genes))  %>% filter(Sum>0)
+head(all_Bcell_genes)
+
+```
+
+###B_cell cluster markers
+```{r}
+B_cells <- SubsetData(experiment, ident.use =c(5, 14, 22))
+DimPlot(object = B_cells,  pt.size=0.3, label = T)
+ggsave(paste("BCells_DimPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 6, units = "in", dpi=300)
+
+#Compare all three clusters against each other
+markers_14_5_22 <- FindAllMarkers(B_cells, only.pos = T)
+markers_14_5_22 <- markers_14_5_22 %>% filter(p_val_adj < 0.05)
+
+#Compare cluster 14 against combined cluster 5+22
+markers_14_5.22 <- FindMarkers(B_cells, ident.1 = 14, ident.2 = c(5, 22))
+markers_14_5.22 <- markers_14_5.22 %>% filter(p_val_adj < 0.05)
+
+
+saveRDS(markers_14_5_22, file=paste("Clusters_14_5_22_markers_default_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+saveRDS(markers_14_5.22, file=paste("Clusters_14_5+22_markers_default_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+```
+
+
+##Filter unique genes in all_Bcell_genes
+```{r}
+markers_14_5_22 <- readRDS('Clusters_14_5_22_markers_default_2021-02-09_13-26.rds')
+all_Bcell_genes <- as.data.frame(all_Bcell_genes$gene)
+all_Bcell_genes <- dplyr::rename(all_Bcell_genes, 'gene' = 'all_Bcell_genes$gene')
+list.markers_14_5_22 <- as.data.frame(markers_14_5_22$gene)
+list.markers_14_5_22 <- dplyr::rename(list.markers_14_5_22, 'gene' = 'markers_14_5_22$gene')
+common_genes <- anti_join(all_Bcell_genes, list.markers_14_5_22)
+
+#double-check for common genes. Should be zero
+test<- intersect(common_genes$gene, markers_14_5_22$gene)
+length(test)
+```
+
+
+###VennDiagram Markers Between B_cell clusters
+```{r}
+markers_14 <- filter(markers_14_5_22, cluster == 14)
+#append list of common genes to marker genes to make the overlapping area of the Venn diagram
+markers_14 <- append(markers_14$gene, common_genes$gene)
+
+markers_5 <- filter(markers_14_5_22, cluster == 5)
+markers_5 <- append(markers_5$gene, common_genes$gene)
+
+markers_22 <- filter(markers_14_5_22, cluster == 22)
+markers_22 <- append(markers_22$gene, common_genes$gene)
+
+venn.diagram(x=list("B_14"=markers_14,"B_5"= markers_5,"B_22"= markers_22), filename="BCell_14_5_22_VennDiagram_Labeled_default_20210209.png", col = "transparent",
+	fill = c(FillCols[2], FillCols[1], FillCols[3]),
+	alpha = 0.5, imagetype = "png", cat.cex = 3, cex = 3,
+	fontfamily = "sans")
+
+venn.diagram(x=list("B_14"=markers_14,"B_5"= markers_5,"B_22"= markers_22), filename="BCell_14_5_22_VennDiagram_NoLabel_default_20210209.png", col = "transparent",
+	fill = c(FillCols[2], FillCols[1], FillCols[3]),
+	alpha = 0.5, imagetype = "png", cat.cex = 0, cex = 0,
+	fontfamily = "sans")
+
+```
+
+
+
+###VennDiagram Specific Markers Between B_cell clusters
+```{r}
+markers_14_5_22 <- readRDS('Clusters_14_5_22_markers_default_2021-02-09_13-26.rds')
+
+
+single_14_5_22 <-markers_14_5_22[markers_14_5_22$gene %in% names(table(markers_14_5_22$gene))[table(markers_14_5_22$gene) == 1],]
+
+markers_14 <- filter(single_14_5_22, cluster == 14, pct.2<0.4)
+markers_14 <- markers_14$gene
+
+markers_5 <- filter(single_14_5_22, cluster == 5, pct.2<0.4)
+markers_5 <- markers_5$gene
+
+markers_22 <- filter(single_14_5_22, cluster == 22, pct.2<0.4)
+markers_22 <- markers_22$gene
+
+
+venn.diagram(x=list("B_14"=markers_14,"B_5"= markers_5,"B_22"= markers_22), filename="BCell_14_5_22_SpecificVennDiagram_Labeled_default_20210209.png", col = "transparent",
+	fill = c(FillCols[2], FillCols[1], FillCols[3]),
+	alpha = 0.5, imagetype = "png", cat.cex = 3, cex = 3,
+	fontfamily = "sans")
+
+venn.diagram(x=list("B_14"=markers_14,"B_5"= markers_5,"B_22"= markers_22), filename="BCell_14_5_22_SpecificVennDiagram_NoLabel_default_20210209.png", col = "transparent",
+	fill = c(FillCols[2], FillCols[1], FillCols[3]),
+	alpha = 0.5, imagetype = "png", cat.cex = 0, cex = 0,
+	fontfamily = "sans")
+
+```
+
+
+
+
+#Figure 3
+
+##Filter unique genes in all_Bcell_genes
+```{r}
+markers_14_5.22 <- readRDS('Clusters_14_5+22_markers_default_2021-02-09_13-26.rds')
+
+list.markers_14_5.22 <- as.data.frame(rownames(markers_14_5.22))
+list.markers_14_5.22 <- dplyr::rename(list.markers_14_5.22, 'gene' = 'rownames(markers_14_5.22)')
+common_genes <- anti_join(all_Bcell_genes, list.markers_14_5.22)
+
+#double-check for common genes. should be zero.
+test<- intersect(common_genes$gene, markers_14_5.22$gene)
+length(test)
+```
+
+###VennDiagram Markers Between B_cell clusters
+```{r}
+
+markers_14_5.22$gene <- rownames(markers_14_5.22)
+
+
+markers_14 <- filter(markers_14_5.22, avg_logFC > 0)
+#append list of common genes to marker genes to make the overlapping area of the Venn diagram
+markers_14 <- append(markers_14$gene, common_genes$gene)
+
+markers_5.22 <- filter(markers_14_5.22, avg_logFC < 0)
+markers_5.22 <- append(markers_5.22$gene, common_genes$gene)
+
+
+venn.diagram(x=list("B_14"=markers_14,"B_5.22"= markers_5.22), filename="BCell_14_5plus22_VennDiagram_Labeled_default_20210209.png", col = "transparent",
+  scaled=F,
+	fill = c(FillCols[2], FillCols[1]),
+	alpha = 0.5, imagetype = "png", cat.cex = 3, cex = 3,
+	fontfamily = "sans")
+
+venn.diagram(x=list("B_14"=markers_14,"B_5.22"= markers_5.22), filename="BCell_14_5plus22_VennDiagram_NoLabel_default_20210209.png", col = "transparent",
+  scaled=F,
+	fill = c(FillCols[2], FillCols[1]),
+	alpha = 0.5, imagetype = "png", cat.cex = 0, cex = 0,
+	fontfamily = "sans")
+
+```
+
+
+
+###VennDiagram Specific Markers Between B_cell clusters
+```{r}
+
+single_14_5.22 <-markers_14_5.22[markers_14_5.22$gene %in% names(table(markers_14_5.22$gene))[table(markers_14_5.22$gene) == 1],]
+
+markers_14 <- filter(single_14_5.22, avg_logFC > 0, pct.2<0.4)
+markers_14 <- markers_14$gene
+
+markers_5.22 <- filter(single_14_5.22, avg_logFC < 0, pct.1<0.4)
+markers_5.22 <- markers_5.22$gene
+
+
+
+venn.diagram(x=list("B_14"=markers_14,"B_5.22"= markers_5.22), filename="BCell_14_5plus22_SpecificVennDiagram_Labeled_default_20210209.png", col = "transparent",
+	fill = c(FillCols[2], FillCols[1]),
+	alpha = 0.5, imagetype = "png", cat.cex = 3, cex = 3,
+	fontfamily = "sans")
+
+venn.diagram(x=list("B_14"=markers_14,"B_5.22"= markers_5.22), filename="BCell_14_5plus22_SpecificVennDiagram_NoLabel_default_20210209.png", col = "transparent",
+	fill = c(FillCols[2], FillCols[1]),
+	alpha = 0.5, imagetype = "png", cat.cex = 0, cex = 0,
+	fontfamily = "sans")
+
+```
+#Generate Heatmap & Dendrogram Objects
+```{r}
+#subset B cells
+B_cells <- subset(experiment, idents=c(14,5,22))
+#rerun SCTransform to scale gene expression within only B cells
+B_cells <- SCTransform(B_cells, return.only.var.genes=F)
+
+#reorder clusters of B cells for plotting:
+levels(B_cells) <- c(14, 5, 22)
+
+
+markers_14_5_22 <- readRDS('Clusters_14_5_22_markers_default_2021-02-09_13-26.rds')
+
+#reorder to match cluster order
+markers_14_5_22 <- markers_14_5_22 %>% mutate(cluster =  factor(cluster, levels = c(14,5,22))) %>% arrange(cluster)
+
+```
+
+
+
+##Generate Heat Map for clusters 14, 5, and 22
+
+```{r}
+#subset top ten markers by adjusted p-value:
+markers <- markers_14_5_22 %>% group_by(cluster) %>% filter(pct.2 < 0.4) %>% top_n(10, -p_val_adj)
+
+
+
+#Plot Heatmap
+HeatMap_Label <- DoHeatmap(B_cells,features=markers$gene,  slot="scale.data", hjust=0.5, angle=0, group.colors = c(FillCols[2], FillCols[1], FillCols[3]))
+HeatMap_Label
+
+ggsave(paste("Bcells_Top10_pct2_40pct_Markers_Labeled_default_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 4, units = "in", dpi=300)
+
+
+HeatMap_noLab <- DoHeatmap(B_cells,features=markers$gene,  slot="scale.data", label=F, group.colors = c(FillCols[2], FillCols[1], FillCols[3]))
+HeatMap_noLab
+
+ggsave(paste("Bcells_Top10_pct2_40pct_Markers_NoLabel_default_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 4, units = "in", dpi=300)
+```
+
+
+
+
+
+
+#Generate Heatmap for clusters 14 and 5+22
+```{r}
+
+B_cells2 <- RenameIdents(B_cells, '5'='5+22', '22'='5+22' )
+#reorder clusters of B cells for plotting:
+levels(B_cells2) <- c('14', '5+22')
+
+
+markers_14_5.22 <- readRDS('Clusters_14_5+22_markers_default_2021-02-09_13-26.rds')
+markers_14_5.22$gene <- rownames(markers_14_5.22)
+markers_14_5.22$cluster <- '14'
+markers_14_5.22$cluster[markers_14_5.22$avg_logFC<0] <- '5+22'
+
+saveRDS(markers_14_5.22, file=paste("Clusters_14_5+22_markers_default_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+
+#reorder to match cluster order
+markers_14_5.22 <- markers_14_5.22 %>% mutate(cluster =  factor(cluster, levels = c('14','5+22'))) %>% arrange(cluster)
+
+```
+
+
+
+##Generate Heat Map
+
+```{r}
+#subset top ten markers by p-value:
+markers_14 <- markers_14_5.22 %>% filter(cluster=='14') %>% filter(pct.2 < 0.4) %>% top_n(15, -p_val_adj)
+markers_5.22 <- markers_14_5.22 %>% filter(cluster=='5+22') %>% filter(pct.1 < 0.4) %>% top_n(15, -p_val_adj)
+markers <- bind_rows(markers_14, markers_5.22)
+
+#Plot Heatmap
+HeatMap_Label <- DoHeatmap(B_cells2,features=markers$gene,  slot="scale.data", hjust=0.5, angle=0, group.colors = c(FillCols[2], FillCols[1]))
+HeatMap_Label
+
+ggsave(paste("Bcells_14_5plus22_Top15_pct2_40pct_Markers_Labeled_default_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 5, height = 4, units = "in", dpi=300)
+
+
+HeatMap_noLab <- DoHeatmap(B_cells2,features=markers$gene,  slot="scale.data", label=F, group.colors = c(FillCols[2], FillCols[1]))
+HeatMap_noLab
+
+ggsave(paste("Bcells_14_5plus22_Top15_pct2_40pct_Markers_NoLabel_default_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 5, height = 4, units = "in", dpi=300)
+```
+
+
+#Label Transfer - DV Nuc to Wholecell
+
+```{r}
+#load single nucleus sequencing data
+nucleus.integrated <- readRDS("sNucSeq.rds")
+
+DefaultAssay(nucleus.integrated) <- "SCT"
+Idents(nucleus.integrated) <- "integrated_snn_res.2"
+
+
+#Get B cells from nuclei dataset:
+nucleus.lineage <- subset(nucleus.integrated, idents =7)
+table(nucleus.lineage@active.ident)
+
+DimPlot(nucleus.lineage, label=T)
+ggsave(paste("NucSeqIntegrated_Bcells_DimPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 12, height = 8, units = "in", dpi=300)
+nucleus.lineage
+```
+
+##Get B cells from WC dataset
+```{r}
+#ensure B_cells has been SCTransformed above. If not, run here:
+#B_cells <- SCTransform(B_cells)
+B_cells
+```
+
+##Split B cell nuclei by region
+```{r}
+nucleus.lineage
+nucleus.cellsList <- SplitObject(nucleus.lineage, split.by = "Method")
+nucleus.cellsList
+```
+
+##Feature 25-50th percentile cutoff per region
+Regions with the most nuclei dominated the label transfer predictions, so downsampling to equal numbers of nuclei from the median 50% of nuclei from each region yielded reproducible results from run-to-run.
+```{r}
+
+#AV
+AV_Q<-quantile(nucleus.cellsList[[1]]$nFeature_SCT)
+AV_Q
+AV_Q[[2]]
+AV_Q[[4]]
+
+table(nucleus.cellsList[[1]]@active.ident)
+
+nucleus.cellsList[[1]] <- subset(nucleus.cellsList[[1]], subset = `nFeature_SCT` > AV_Q[[2]])
+table(nucleus.cellsList[[1]]@active.ident)
+
+nucleus.cellsList[[1]] <- subset(nucleus.cellsList[[1]], subset = `nFeature_SCT` < AV_Q[[4]])
+table(nucleus.cellsList[[1]]@active.ident)
+
+
+#AD
+AD_Q<-quantile(nucleus.cellsList[[2]]$nFeature_SCT)
+AD_Q
+AD_Q[[2]]
+AD_Q[[4]]
+
+table(nucleus.cellsList[[2]]@active.ident)
+
+nucleus.cellsList[[2]] <- subset(nucleus.cellsList[[2]], subset = `nFeature_SCT` > AD_Q[[2]])
+table(nucleus.cellsList[[2]]@active.ident)
+
+nucleus.cellsList[[2]] <- subset(nucleus.cellsList[[2]], subset = `nFeature_SCT` < AD_Q[[4]])
+table(nucleus.cellsList[[2]]@active.ident)
+
+
+#PD
+PD_Q<-quantile(nucleus.cellsList[[3]]$nFeature_SCT)
+PD_Q
+PD_Q[[2]]
+PD_Q[[4]]
+
+table(nucleus.cellsList[[3]]@active.ident)
+
+nucleus.cellsList[[3]] <- subset(nucleus.cellsList[[3]], subset = `nFeature_SCT` > PD_Q[[2]])
+table(nucleus.cellsList[[3]]@active.ident)
+
+nucleus.cellsList[[3]] <- subset(nucleus.cellsList[[3]], subset = `nFeature_SCT` < PD_Q[[4]])
+table(nucleus.cellsList[[3]]@active.ident)
+
+
+#PV
+PV_Q<-quantile(nucleus.cellsList[[4]]$nFeature_SCT)
+PV_Q
+PV_Q[[2]]
+PV_Q[[4]]
+
+table(nucleus.cellsList[[4]]@active.ident)
+
+nucleus.cellsList[[4]] <- subset(nucleus.cellsList[[4]], subset = `nFeature_SCT` > PV_Q[[2]])
+table(nucleus.cellsList[[4]]@active.ident)
+
+nucleus.cellsList[[4]] <- subset(nucleus.cellsList[[4]], subset = `nFeature_SCT` < PV_Q[[4]])
+table(nucleus.cellsList[[4]]@active.ident)
+
+
+nucleus.cellsList
+
+VlnMerge <-  merge(nucleus.cellsList[[1]], y= c(nucleus.cellsList[[2]], nucleus.cellsList[[3]], nucleus.cellsList[[4]]), merge.data = T)
+VlnPlot(VlnMerge, features=c("nFeature_SCT", "nCount_SCT"),split.by = "Method", split.plot=T,pt.size = 0, combine=T)
+ggsave(paste("NucSeq_Bcell_FeatQuantFilt_nFeatnCount_VlnPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 12, height = 8, units = "in", dpi=300)
+```
+
+##Region Downsample to Least Cell Number
+```{r}
+
+
+#downsample each to match region with least cells
+
+nCells=60
+nucleus.cellsList[[1]] = subset(nucleus.cellsList[[1]], cells = sample(Cells(nucleus.cellsList[[1]]), nCells))
+nucleus.cellsList[[2]] = subset(nucleus.cellsList[[2]], cells = sample(Cells(nucleus.cellsList[[2]]), nCells))
+nucleus.cellsList[[3]] = subset(nucleus.cellsList[[3]], cells = sample(Cells(nucleus.cellsList[[3]]), nCells))
+nucleus.cellsList[[4]] = subset(nucleus.cellsList[[4]], cells = sample(Cells(nucleus.cellsList[[4]]), nCells))
+
+#Add D/V metadata
+nucleus.cellsList[[1]]$DV <- "Ventral"
+nucleus.cellsList[[2]]$DV <- "Dorsal"
+nucleus.cellsList[[3]]$DV <- "Dorsal"
+nucleus.cellsList[[4]]$DV <- "Ventral"
+
+#merge back to one object
+nucleus.Sampled <- merge(nucleus.cellsList[[1]], y= c(nucleus.cellsList[[2]], nucleus.cellsList[[3]], nucleus.cellsList[[4]]), merge.data = T)
+table(nucleus.Sampled$DV)
+```
+
+##Find Anchors
+```{r}
+
+nucleus.Sampled <- SCTransform(nucleus.Sampled)
+nucleus.Sampled
+
+
+transfer.anchors <- FindTransferAnchors(reference = nucleus.Sampled, reference.assay = "SCT", query = B_cells, query.assay = "SCT",  normalization.method = "SCT", npcs=30, project.query=T, dims = 1:30)
+
+```
+
+
+##Region Transfer Data
+```{r}
+
+predictionsR <- TransferData(anchorset = transfer.anchors, refdata = nucleus.Sampled$Method, dims = 1:30)
+predictionsDV <- TransferData(anchorset = transfer.anchors, refdata = nucleus.Sampled$DV, dims = 1:30)
+
+B_cells <- AddMetaData(B_cells, metadata = predictionsR)
+
+
+DimPlot(B_cells, group.by = "predicted.id")
+ggsave(paste("WC_LabelTransfer_BcellSampled_Region_DimPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 12, height = 8, units = "in", dpi=300)
+
+```
+
+###Save Predictions Metadata
+```{r}
+
+saveRDS(predictionsR,file=paste("WC_BcellTransferLabels_RegionNucMetaData_DownSampledNuclei_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+
+saveRDS(predictionsDV,file=paste("WC_BcellTransferLabels_DVNucMetaData_DownSampledNuclei_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+
+saveRDS(nucleus.Sampled,file=paste("NucSeq_DownSampledNuclei_DVMetadata_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+```
+
+##Dorsal Ventral Transfer Data
+```{r}
+predictionsDV <- readRDS("~/Box Sync/AAB Lab/100 Data/201 Single Cell Data/Whole Cell Data/20200914_DataObjects_LabelTransfer/WC_BcellTransferLabels_DVNucMetaData_DownSampledNuclei_2020-09-14_19-08.rds")
+
+
+experiment.NSC <- AddMetaData(experiment.NSC, metadata = predictionsDV)
+
+
+DimPlot(experiment.NSC, group.by = "predicted.id") +  NoAxes() + coord_fixed() +xlim(-6,7)  + ylim(-15,8)
+ggsave(paste("WC_LabelTransfer_BcellSampled_DorsalVentral_DimPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 12, height = 8, units = "in", dpi=300)
+
+
+
+
+```
+
+##Score Diff Predicted ID
+```{r}
+ScoreSummary<- select(experiment.NSC@meta.data,  prediction.score.Dorsal, prediction.score.Ventral)
+
+ScoreSummary$prediction.diff.DV <- ScoreSummary$prediction.score.Dorsal-ScoreSummary$prediction.score.Ventral
+experiment.NSC <- AddMetaData(experiment.NSC, metadata = ScoreSummary)
+
+#Colorbrewer2.org - diverging palette
+FeaturePlot(experiment.NSC,features = "prediction.diff.DV",cols = c("#d01c8b", "lightgray", "#4dac26"))  +  NoAxes() + coord_fixed() +xlim(-6,7)  + ylim(-15,8)
+ggsave(paste("WC_LabelTransfer_Bcellsampled_DorsalVentralDiffScore_FeaturePlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 6, units = "in", dpi=300)
+```
+##DV Score Dot Plot
+```{r}
+
+B_cells <- AddMetaData(B_cells, metadata = predictionsDV)
+
+
+DotPlot(B_cells, features=c("prediction.score.Dorsal", "prediction.score.Ventral"), scale.min = 0, scale.max = 100, dot.scale = 20)+ 
+  cowplot::theme_cowplot() + 
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5, hjust=0.5), axis.text.y = element_text(angle = 0, vjust = 0.5, hjust=1)) +
+  ylab('') + xlab('') + coord_flip()
+ggsave(paste("WC_LabelTransfer_Bcellsampled_5plus22_DorsalVentralScore_DotPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 7, height = 4, units = "in", dpi=300)
+
+```
+
+
+###Save Predictions Metadata
+```{r}
+
+
+saveRDS(predictionsR,file=paste("WC_BcellTransferLabels_RegionNucMetaData_DownSampledNuclei_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+
+saveRDS(predictionsDV,file=paste("WC_BcellTransferLabels_DVNucMetaData_DownSampledNuclei_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+
+saveRDS(nucleus.Sampled,file=paste("NucSeq_DownSampledNuclei_DVMetadata_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
