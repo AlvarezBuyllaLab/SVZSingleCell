@@ -1,0 +1,127 @@
+---
+title: "PD NucSeq Object Creation & Filtering"
+author: "SAR"
+date: "20200709"
+editor_options: 
+  chunk_output_type: inline
+---
+#Load packages
+```{r}
+
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+library(viridis)
+library(future)
+plan()
+options(future.globals.maxSize = 5000 * 1024^2)
+```
+
+
+#Load PD Nucleus data into R
+Load PD counts
+```{r}
+
+ids <- c("PD")
+
+d10x.data <- sapply(ids, function(i){
+  d10x <- Read10X("/PD/outs/filtered_gene_bc_matrices/GRCm38/")
+  colnames(d10x) <- paste(sapply(strsplit(colnames(d10x),split="-"),'[[',1L),i,sep="-")
+  d10x
+})
+
+experiment.data <- do.call("cbind", d10x.data)
+
+PD_nuclei <- CreateSeuratObject(
+  experiment.data,
+  project = "PD_NucSeq", 
+  min.cells = 10,
+  names.field = 2,
+  names.delim = "\\-")
+```
+
+#Percent Mito
+```{r}
+PD_nuclei[["percent.mt"]] <- PercentageFeatureSet(PD_nuclei, pattern = "^mt-")
+```
+
+
+#filtering mitochondrial genes
+```{r}
+
+hist(PD_nuclei@meta.data$percent.mt)
+quantM <- quantile(PD_nuclei@meta.data$percent.mt)
+quantM
+
+PD_nuclei <- SubsetData(PD_nuclei,
+  subset.name = c("percent.mt"),
+  low.threshold  = 0,
+  high.threshold = 10)
+
+hist(PD_nuclei@meta.data$percent.mt)
+quantM <- quantile(PD_nuclei@meta.data$percent.mt)
+quantM
+```
+
+#filtering ncounts
+```{r}
+hist(PD_nuclei@meta.data$nCount_RNA)
+quantsC <- quantile(PD_nuclei@meta.data$nCount_RNA)
+quantsC
+countscutoff <- quantile(PD_nuclei@meta.data$nCount_RNA, c(.05, .95))
+countscutoff
+
+
+PD_nuclei <- SubsetData(PD_nuclei,
+  subset.name = c("nCount_RNA"),
+  low.threshold  = countscutoff[1],
+  high.threshold = countscutoff[2])
+```
+
+#filtering nFeats
+```{r}
+hist(PD_nuclei@meta.data$nFeature_RNA)
+quantG <- quantile(PD_nuclei@meta.data$nFeature_RNA)
+quantG
+featscutoff <- quantile(PD_nuclei@meta.data$nFeature_RNA, c(.05, .95))
+featscutoff
+
+PD_nuclei <- SubsetData(PD_nuclei,
+  subset.name = c("nFeature_RNA"),
+  low.threshold  = featscutoff[1])
+
+
+PD_nuclei
+
+```
+
+#SCTransfrom, Cluster
+```{r}
+plan("multiprocess", workers = 8)
+plan()
+PD_nuclei <- SCTransform(PD_nuclei)
+PD_nuclei
+
+PD_nuclei<- RunPCA(PD_nuclei, verbose = T, npcs = 100)
+PCAPlot(object = PD_nuclei, dims=c(1,2) )
+ElbowPlot(PD_nuclei, ndims = 100)
+
+```
+
+#UMAP and plot
+```{r}
+PD_nuclei <- FindNeighbors(PD_nuclei, dims = 1:100, verbose = FALSE)
+PD_nuclei <- FindClusters(PD_nuclei, resolution = c(0.8, seq(0.5, 2, 0.5)), verbose = FALSE)
+
+PD_nuclei <- RunUMAP(PD_nuclei, dims = 1:100)
+
+
+DimPlot(PD_nuclei,group.by="SCT_snn_res.2", pt.size = 0.4, label = T)
+ggsave(paste("PD_NucSeq_DimPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 6, height = 4, units = "in", dpi=300)
+```
+
+#save object
+```{r}
+saveRDS(PD_nuclei, file = paste("PD_NucSeq_sctransformed_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+#most recent: 2020-07-09_12-24.rds
+```

@@ -1,0 +1,125 @@
+---
+title: "PV NucSeq Object Creation & Filtering"
+author: "SAR"
+date: "20200730"
+editor_options: 
+  chunk_output_type: inline
+---
+#Load packages
+```{r}
+
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+library(viridis)
+
+options(future.globals.maxSize = 5000 * 1024^2)
+```
+
+
+#Load PV Nucleus data into R
+Load PV counts
+```{r}
+
+ids <- c("PV")
+
+d10x.data <- sapply(ids, function(i){
+  d10x <- Read10X("../../../../../../data4/svz_10x/pipestance_PV/PV/outs/filtered_feature_bc_matrix/")
+  colnames(d10x) <- paste(sapply(strsplit(colnames(d10x),split="-"),'[[',1L),i,sep="-")
+  d10x
+})
+
+experiment.data <- do.call("cbind", d10x.data)
+
+PV_nuclei <- CreateSeuratObject(
+  experiment.data,
+  project = "PV_NucSeq", 
+  min.cells = 10,
+  names.field = 2,
+  names.delim = "\\-")
+```
+
+#Percent Mito
+```{r}
+PV_nuclei[["percent.mt"]] <- PercentageFeatureSet(PV_nuclei, pattern = "^mt-")
+```
+
+
+#filtering mitochondrial genes
+```{r}
+
+hist(PV_nuclei@meta.data$percent.mt)
+quantM <- quantile(PV_nuclei@meta.data$percent.mt)
+quantM
+
+PV_nuclei <- SubsetData(PV_nuclei,
+  subset.name = c("percent.mt"),
+  low.threshold  = 0,
+  high.threshold = 10)
+
+hist(PV_nuclei@meta.data$percent.mt)
+quantM <- quantile(PV_nuclei@meta.data$percent.mt)
+quantM
+```
+
+#filtering ncounts
+```{r}
+hist(PV_nuclei@meta.data$nCount_RNA)
+quantsC <- quantile(PV_nuclei@meta.data$nCount_RNA)
+quantsC
+countscutoff <- quantile(PV_nuclei@meta.data$nCount_RNA, c(.05, .95))
+countscutoff
+
+
+PV_nuclei <- SubsetData(PV_nuclei,
+  subset.name = c("nCount_RNA"),
+  low.threshold  = countscutoff[1],
+  high.threshold = countscutoff[2])
+```
+
+#filtering nFeats
+```{r}
+hist(PV_nuclei@meta.data$nFeature_RNA)
+quantG <- quantile(PV_nuclei@meta.data$nFeature_RNA)
+quantG
+featscutoff <- quantile(PV_nuclei@meta.data$nFeature_RNA, c(.05, .95))
+featscutoff
+
+PV_nuclei <- SubsetData(PV_nuclei,
+  subset.name = c("nFeature_RNA"),
+  low.threshold  = featscutoff[1])
+
+
+PV_nuclei
+
+```
+
+#SCTransfrom, Cluster
+```{r}
+
+PV_nuclei <- SCTransform(PV_nuclei)
+PV_nuclei
+
+PV_nuclei<- RunPCA(PV_nuclei, verbose = T, npcs = 100)
+PCAPlot(object = PV_nuclei, dims=c(1,2) )
+ElbowPlot(PV_nuclei, ndims = 100)
+
+```
+
+#UMAP and plot
+```{r}
+PV_nuclei <- FindNeighbors(PV_nuclei, dims = 1:100, verbose = FALSE)
+PV_nuclei <- FindClusters(PV_nuclei, resolution = c(0.8, seq(0.5, 2, 0.5)), verbose = FALSE)
+
+PV_nuclei <- RunUMAP(PV_nuclei, dims = 1:100)
+
+
+DimPlot(PV_nuclei,group.by="SCT_snn_res.2", pt.size = 0.4, label = T)
+ggsave(paste("PV_NucSeq_DimPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 6, height = 4, units = "in", dpi=300)
+```
+
+#save object
+```{r}
+saveRDS(PV_nuclei, file = paste("PV_NucSeq_sctransformed_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+#most recent: 2020-07-30_16-49.rds
+```

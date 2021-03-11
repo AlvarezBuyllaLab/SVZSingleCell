@@ -1,0 +1,101 @@
+---
+title: "NucSeq Clustering Analysis"
+author: "SAR"
+date: "20200803"
+editor_options: 
+  chunk_output_type: inline
+---
+#Load packages
+```{r}
+
+#devtools::install_github(repo = "satijalab/seurat", ref = "develop")
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+library(viridis)
+library(future)
+
+options(future.globals.maxSize = 5000 * 1024^2)
+plan("multiprocess", workers = 8)
+plan()
+
+
+AD <- readRDS('AD_NucSeq_sctransformed.rds')
+
+AV <- readRDS('AV_NucSeq_sctransformed.rds')
+
+PD <- readRDS('PD_NucSeq_sctransformed.rds')
+
+PV <- readRDS('PV_NucSeq_sctransformed.rds')
+
+
+```
+##Add Metadata
+```{r}
+AD <- AddMetaData(AD, "NucSeq", col.name = 'SeqMethod')
+AD <- AddMetaData(AD, "AD Nuclei", col.name = 'Method')
+
+AV <- AddMetaData(AV, "NucSeq", col.name = 'SeqMethod')
+AV <- AddMetaData(AV, "AV Nuclei", col.name = 'Method')
+
+PD <- AddMetaData(PD, "NucSeq", col.name = 'SeqMethod')
+PD <- AddMetaData(PD, "PD Nuclei", col.name = 'Method')
+
+PV <- AddMetaData(PV, "NucSeq", col.name = 'SeqMethod')
+PV <- AddMetaData(PV, "PV Nuclei", col.name = 'Method')
+```
+
+#Prep Integrate Data
+```{r}
+nucleus.list <- SplitObject(experiment.list[[1]], split.by = "Method")
+
+nucleus.features <- SelectIntegrationFeatures(object.list = nucleus.list, nfeatures = 3000)
+nucleus.list <- PrepSCTIntegration(object.list = nucleus.list, anchor.features = nucleus.features, 
+    verbose = FALSE)
+```
+
+#Integrate Data
+```{r}
+nucleus.anchors <- FindIntegrationAnchors(object.list = nucleus.list, normalization.method = "SCT", 
+    anchor.features = nucleus.features, verbose = FALSE)
+nucleus.integrated <- IntegrateData(anchorset = nucleus.anchors, normalization.method = "SCT", 
+    verbose = FALSE)
+
+saveRDS(nucleus.integrated,file=paste("NucSeq_Integrated_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+
+
+```
+
+
+
+
+
+
+
+#Cluster & Plot Integrated Nuclei
+```{r}
+nucleus.integrated <- RunPCA(nucleus.integrated, verbose = T, npcs = 100)
+
+
+PCAPlot(object = nucleus.integrated, dims=c(1,2) )
+ElbowPlot(nucleus.integrated, ndims = 100)
+
+nucleus.integrated <- RunUMAP(nucleus.integrated, dims = 1:100)
+nucleus.integrated <- FindNeighbors(nucleus.integrated, dims = 1:100, verbose = T)
+nucleus.integrated <- FindClusters(nucleus.integrated, resolution = c(seq(1, 2, 0.5)), verbose = T)
+
+
+
+Idents(nucleus.integrated) <- "integrated_snn_res.2"
+
+DimPlot(nucleus.integrated, label=T)
+
+```
+
+#Save Integrated & Clustered nucSeq object
+```{r}
+DefaultAssay(nucleus.integrated) <- "SCT"
+
+saveRDS(nucleus.integrated,file=paste("sNucSeq",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+
+```
