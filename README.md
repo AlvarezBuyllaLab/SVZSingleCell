@@ -13,3 +13,27 @@ UCSC Single Cell Browser: https://svzneurogeniclineage.cells.ucsc.edu
 ### Raw count matricies and processed Seurat data objects are deposited at the following GEO link:
 https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE165555
 
+# Rmd File Descriptions
+
+## Data Preprocessing
+scRNA-Seq dataset:
+
+sNucRNA-Seq dataset: Preprocessing/sNucRNASeq_ObjectCreation/
+
+## Dataset Analyses
+
+### Figure 1 & Supplements
+
+Supplement 3: sNucRNASeq_Fig1Supplement3.Rmd
+
+### Figure 2
+
+
+### Figure 3 & Supplement
+BCellsAnalysis_Fig3_Fig3Supplement1.Rmd
+
+### Figure 5 & Supplement
+
+Acell_NucleiLabelTransfer_Fig5.Rmd
+
+### Figure 6 & Supplement
