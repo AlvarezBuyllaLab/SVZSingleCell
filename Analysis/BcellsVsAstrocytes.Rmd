@@ -1,0 +1,221 @@
+---
+title: "Results"
+author: "ACS"
+output: html_document
+---
+
+```{r}
+#setup
+library(Seurat)
+library(ggplot2)
+library(sctransform)
+library(reticulate)
+library(dplyr)
+library(viridis)
+library(patchwork)
+library(readr)
+library(shiny)
+library(scales)
+library(tidyr)
+```
+```{r}
+#load the experiment
+DimPlot(`experiment.SCT+CCA_integrated_2020-06-08`, reduction = "umap", label = TRUE,  label.size = 8)
+```
+#RESULTS
+##Single-cell RNA sequencing distinguishes B cells from parenchymal astrocytes and reveals B cell heterogeneity.
+
+###Figure 1B. Identification of non-neurogenic lineage cell clusters:
+```{r}
+#Microglia
+FeaturePlot(object = `experiment.SCT+CCA_integrated_2020-06-08`, features = c( "Cd68", "Aif1", "Cd200", "Cx3cr1", "Cx3cl1", "Cd14", "Mertk", "Ctsd", "Hexb", "Tmem119", "Siglech",  "Lrp8", "Stab1"), cols = c(NA, "magenta","mediumturquoise", "blue", "green"), combine = TRUE) + NoLegend()
+
+#Pericytes
+FeaturePlot(object = `experiment.SCT+CCA_integrated_2020-06-08`, features = c("Pdgfrb", "Mcam", "Cspg4", "Anpep", "Kcnj8", "Abcc9", "Ggt1", "Spon2", "Col7a1", "Nid2", "Ntn1", "Ptprz1", "Ager"), cols = c(NA, "magenta", "mediumturquoise", "blue", "green"), combine = TRUE) + NoLegend()
+
+#Endothelial cells
+FeaturePlot(object = `experiment.SCT+CCA_integrated_2020-06-08`, features = c("Anpep", "Pecam1", "Cd34"), cols = c(NA, "magenta", "mediumturquoise", "blue", "green"), combine = TRUE) + NoLegend()
+
+#vascular smooth muscle cells (VSMC), genes from different sources. Some of them common with pericytes. 
+FeaturePlot(object = `experiment.SCT+CCA_integrated_2020-06-08`, features = c("Des", "Flt1", "Acta2", "Tagln", "Myh11", "Myl9", "Myl6", "Cald1", "Rgs5", "Npy1r", "Calcrl", "Grik5", "Avpr1a", "Crhr2", "Gucy1a2", "Gucy1a3", "Gucy1b3"), cols = c(NA, "magenta", "mediumturquoise", "blue", "green"), combine = TRUE) + NoLegend()
+
+#oligodendrocytes-OPC
+FeaturePlot(object = `experiment.SCT+CCA_integrated_2020-06-08`, features = c("Olig2", "Olig1", "Pdgfra", "Sox10", "Mbp"), cols = c(NA, "magenta", "mediumturquoise", "blue", "green"), combine = TRUE) + NoLegend()
+
+#Interneurons
+FeaturePlot(object = `experiment.SCT+CCA_integrated_2020-06-08`, features = c("Gad1", "Gad2", "Pvalb", "Sst", "Reln", "Vip", "Htr3a", "Npy", "Calb2", "Sp8", "Gabra1", "Rbfox3"), cols = c(NA, "magenta", 
+    "mediumturquoise", "blue", "green"), combine = TRUE) + NoLegend()
+
+#Glutamamteric neurons
+FeaturePlot(object = `experiment.SCT+CCA_integrated_2020-06-08`, features = c("Kiss1", "Pomc", "Npvf", "Agrp", "Tac2", "Vip", "Cck", "Npy", "Sst", "Adcyap1", "Cartpt", "Gal"), cols = c(NA, "magenta", 
+    "mediumturquoise", "blue", "green"), combine = TRUE) + NoLegend()
+
+#GABAergic neurons
+FeaturePlot(object = `experiment.SCT+CCA_integrated_2020-06-08`, features = c("Pvalb", "Npas1", "Bcl11b", "Gm13498", "Lhx8", "Trh", "Vipr2", "Prok2", "Ghrh", "Crabp1","Cbln4","Cox6a2"), cols = c(NA, "magenta", 
+    "mediumturquoise", "blue", "green"), combine = TRUE) + NoLegend()
+
+features <- c("Pvalb", "Npas1", "Bcl11b", "Gm13498", "Lhx8")
+plot<-VlnPlot(`experiment.SCT+CCA_integrated_2020-06-08`, features = features, pt.size = FALSE, combine = FALSE)
+CombinePlots(plot, ncol = 1,legend = "right")
+```
+
+###Figure 1B. UMAP plot:
+```{r}
+experiment_annotated<- RenameIdents(`experiment.SCT+CCA_integrated_2020-06-08`,
+"3"="Ependymal cells",
+"23"="Ependymal cells",
+"32"="Ependymal cells",
+"34"="Ependymal cells",
+"2"="Ependymal cells",
+"30"="Ependymal cells",                                    
+"21"="Astrocytes",
+"26"="Astrocytes",
+"29"="Astrocytes",                                   
+"14"="B cells",
+"5"="B cells",
+"22"="B cells",
+"13"="B cells",
+"12"="C cells", 
+"10"="Mitosis",
+"16"="Mitosis",
+"8"="Mitosis",
+"17"="Mitosis",
+"15"="A cells",
+"6"="A cells",
+"4"="A cells",
+"0"="A cells",
+"1"="A cells",
+"28"="GABAergic neurons",
+"27"="GABAergic neurons",
+"31"="Neuron",
+"9"="OPC/Oligo",
+"35"="OPC/Oligo",
+"36"="Microglia",
+"25"="Microglia",
+"24"="Microglia",
+"11"="Microglia",
+"7"="Endothelial cells",
+"20"="Endothelial cells",
+"19"="Endothelial cells",
+"18"="Pericytes/VSMC",
+"33"="VLMC1")
+
+DimPlot(`experiment_annotated`, reduction = "umap",pt.size=0.3, label=FALSE, cols = c("sandybrown", "plum3","steelblue3", "seagreen3", "yellow1", "indianred2","brown3","red", "slateblue1","hotpink", "pink", "coral","brown", "darkorchid4")) + NoLegend()
+
+#Cell cluster legends were included in Figure 1B using Adobe Photoshop
+```
+###Figure 1-Supplement 2. Analysis B cells Vs parenchymal astrocytes:
+```{r}
+#Subset Neurogenic lineage with astrocytes
+SVZ_Astro <-SubsetData(object=`experiment_annotated`,ident.use = c("B cells", "Astrocytes", "C cells", "A cells", "Mitosis"))
+DimPlot(SVZ_Astro, reduction = "umap", label = TRUE)
+
+#Create a UMAP plot. Figure 1-Supplement 2A
+DimPlot(`SVZ_Astro`, reduction = "umap",pt.size=0.3, label=FALSE, cols = c("plum3","steelblue3", "grey77", "grey77", "grey77")) + NoLegend()
+
+#Expression of NSCs and Astrocytes known markers. Figure 1-Supplement 2B
+genes <- c("Gfap","GFP","S100a6", "Aqp4", "Cxcl14", "S100b")
+FeaturePlot(SVZ_Astro, features = genes, combine = FALSE, order = T)
+
+p1 <- FeaturePlot(SVZ_Astro, features = genes, combine = FALSE, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend()
+Plot1 <- lapply(p1, function (x) x + coord_fixed() + fix.sc + xlim(-6, 7) + ylim(-15, 8) + simple)
+
+wrap_plots(Plot1,ncol=6) 
+```
+```{r}
+#Subset B cells (14, 5, 22 and 13) and astrocytes (21, 26 and 29) clusters
+BVsAstro <-SubsetData(object=`experiment_annotated`,ident.use = c("B cells", "Astrocytes"))
+DimPlot(BVsAstro, reduction = "umap", label = TRUE)
+
+#Find Markers B cells Vs astrocytes
+BVsAstroMarkers<-FindAllMarkers(BVsAstro, min.pct = 0.1, only.pos = T, logfc.threshold = 0.1)
+save(BVsAstroMarkers, file = paste0("BVsAstroMarkers", Sys.Date(), ".Rdata"))
+
+#Top markers for Astrocytes. cutoff pct.2 <0.2
+Astrocytes_markers <- filter(BVsAstroMarkers, cluster == "Astrocytes", pct.2<0.20)
+head(Astrocytes_markers)
+Astrocytes_markers <-Astrocytes_markers$gene
+
+#Top markers for NSCs (B cells). cutoff pct.2 <0.2
+NSCs_markers <- filter(BVsAstroMarkers, cluster == "B cells", pct.2<0.20)
+head(NSCs_markers)
+NSCs_markers <- NSCs_markers$gene
+
+#Top markers expression Dotplot. Figure 1-Supplement 2C.
+topgenes_Astrocytes <-head(Astrocytes_markers,10)
+topgenes_NSCs <-head(NSCs_markers, 10)
+
+DotPlot(BVsAstro, features=c(topgenes_NSCs,topgenes_Astrocytes), col.min = 0, dot.scale = 11) + cowplot::theme_cowplot() + 
+  theme(axis.text.x = element_text( vjust = 0, hjust=0.5), axis.text.y = element_text(angle = 0, vjust = 0.5, hjust=1)) +
+  ylab('') + xlab('') + coord_flip()
+```
+#B cells and astrocytes GO analysis.
+```{r}
+#Create tables to export to PANTHER
+cutoff <- 0.2 
+Astrocytes.markers <- BVsAstroMarkers %>% filter(cluster=="Astrocytes" & avg_logFC >0 & pct.2 < cutoff) %>% pull(gene)
+Bcells.markers <- BVsAstroMarkers %>% filter(cluster=="B cells" & avg_logFC >0 & pct.2 < cutoff) %>% pull(gene)
+
+write.table(Astrocytes.markers, quote = F, row.names = F, col.names = F, "Astrocytes.strictmarkers.txt", sep=",")
+write.table(Bcells.markers, quote = F, row.names = F, col.names = F, "B cells.strictmarkers.txt", sep=",")
+
+get_gene_names(BVsAstro, use.row = FALSE, ...)
+```
+
+```{r}
+#Analysis was performed on PANTHER, significant and non-significant terms were imported as:
+
+Panthertable_AstrocytesNS <- read_delim("/data4/arantxa/Whole cell /analysis 2019-20/batch effect corrected/Bcells_Astrocytes/Panthertable_AstrocytesNS.txt", 
+    "\t", escape_double = FALSE, col_names = c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr"), trim_ws = TRUE, skip = 12)
+head(Panthertable_AstrocytesNS)
+
+Panthertable_BcellsNS <- read_delim("/data4/arantxa/Whole cell /analysis 2019-20/batch effect corrected/Bcells_Astrocytes/Panthertable_BcellsNS.txt", 
+    "\t", escape_double = FALSE, col_names = c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr"), trim_ws = TRUE, skip = 12)
+
+head(Panthertable_BcellsNS)
+```
+
+```{r}
+AstroGo2 <-Panthertable_AstrocytesNS
+BcellsGo2 <-Panthertable_BcellsNS
+
+#Finding the top 5 categories enriched in each cluster, filtering for p value < 0.01 and FDR <0.05:
+go.cats2 <- unique(AstroGo2 %>% filter(raw.p.value < 0.01 & fdr <0.05) %>% arrange(desc(fold.enrich)) %>% slice_head(n = 10) %>% pull(go))
+AstroGo2 %>% filter(go == go.cats2[5])
+go.heatmap.df <- AstroGo2 %>% filter(go %in% go.cats2)
+
+#Merge tables
+go.cat.n2 <- nrow(AstroGo2)
+go.data2 <- do.call("rbind", list(AstroGo2, BcellsGo2))
+go.data2 %>% mutate(fold.enrich = go.data2$obs/go.data2$expected)
+go.data2[1:go.cat.n2,"identity"] <- "Astrocytes"
+go.data2[(1+go.cat.n2):(2*go.cat.n2),"identity"] <- "Bcells"
+
+
+go.cats2 <- rev(unique(go.data2 %>% filter(ref >5 & ref <150 & raw.p.value < 0.01 & fdr <0.05) %>% group_by(identity) %>% slice_max(n = 10, order_by = fdr, with_ties = F) %>% pull(go)))
+```
+
+```{r}
+order2 <- c("Astrocytes", "Bcells")
+df.all2<- go.data2 %>% filter(go %in% go.cats2)
+df.all2$fold.enrich <- as.numeric(df.all2$fold.enrich)
+df.all2 <- df.all2 %>% mutate(fold.enrich = replace_na(fold.enrich, 0))
+df.all2$fold.enrich <- as.numeric(df.all2$fold.enrich)
+df.all2 <- df.all2 %>% mutate(sig = ifelse(fdr < 0.05, T, F))
+df.all2$identity <- factor(df.all2$identity, levels = order2)
+df.all2$go <- factor(df.all2$go, levels = go.cats2)
+df.all2 <- df.all2 %>% mutate(fdr2 = ifelse(sig == T, fdr, NA))
+
+#B cells and astrocytes GO terms Dotplot. Figure 1-Supplement 2D
+ggplot(df.all2, aes(identity, go)) + 
+  geom_point(aes(col = fdr2, size = fold.enrich)) + 
+  scale_color_gradient(name = "Adjusted p-value", low = "#de2d26", high = "#fee0d2", na.value = "grey75")  + 
+  scale_size(name = "Fold enrichment") +
+  theme_minimal() + 
+  theme(panel.grid.major = element_blank(), axis.title = element_blank(), legend.position = "bottom", legend.direction = "horizontal")
+
+
+
+```
