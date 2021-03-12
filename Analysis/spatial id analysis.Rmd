@@ -1,0 +1,1103 @@
+---
+title: "Spatial Analasys on scRNA-seq 2020"
+output: html_notebook
+---
+#setup
+```{r setup}
+library(knitr)
+library(ggplot2) 
+library(reticulate) 
+library(Seurat)
+library(R.utils)
+library(dplyr)
+library(tibble)
+library(viridis)
+library(patchwork)
+library(tidyr)
+knitr::opts_knit$set(root.dir = "/data4/marcos/WC - Mouse 2020")
+```
+
+#Loading the annotated Seurat Object
+```{r}
+#There are multiple objects in this folder. Comments on the last chunk of the Normalization and clustering notebook describe what each object is
+#Loading Rdata objects
+#load("~/../../data4/svz_10x/analysis/wc_2020/experiment.deMPx_filt_norm_2020-05-13.Rdata")
+
+
+#Loading RDS objects. They are better because you can assign them to any variable you want, and do not risk overwriting other variables
+exp <- readRDS("/data4/svz_10x/analysis/wc_2020/experiment.SCT+CCA_integrated_2020-06-08.rds")
+exp.reg <- readRDS("/data4/svz_10x/analysis/wc_2020/batch.effect.removal/Experiment_CCASCT_CellCycleRegressed_06232020.rds")
+
+Idents(exp) <- "integrated_snn_res.1.5"
+a <- DimPlot(exp, label = T) + NoLegend() + coord_fixed()
+b <- DimPlot(exp, group.by = "Phase") + coord_fixed()
+
+a+b
+```
+
+```{r}
+allmarkers <- FindAllMarkers(exp, only.pos = T, min.pct = 0.1, logfc.threshold = 0.2)
+saveRDS(allmarkers, file = paste0("allmarkers.res.0.8_", Sys.Date(), ".rds"))
+
+#2020-05-04: 5% mithochondrial genes
+#2020-05-13: 10% mithochondrial genes
+class(exp@meta.data$SCT_snn_res.0.8)
+```
+
+#Overview DimPlot and gene expression
+```{r}
+#Overview
+DimPlot(exp, label = T) + simple + coord_fixed()
+FeaturePlot(exp, "Crym", order = T) + fix.sc + simple + coord_fixed() 
+#+ xlim(-6, 7) + ylim(-15, 8)
+
+#Setting the main genes we believe to be region-related
+spatialgenes <- c("Crym", "Urah", "Nkx6-2", "Gsx2", "Rlbp1")
+
+Idents(exp) <- "integrated_snn_res.1.5"
+a<-DimPlot(exp, label = T) + coord_fixed()+ NoLegend()
+aa<- FeaturePlot(exp, spatialgenes, order = T, combine = FALSE)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A")
+#fix.x <- xlim(c(-12, 0))
+#fix.y <- ylim(c(-5, 10))
+simple <- NoAxes() + NoLegend()
+aaa <- lapply(aa, function (x) x + fix.sc + simple + coord_fixed())
+b <- CombinePlots(aaa)
+#Overview Plots
+a+b
+
+```
+
+#Exploring  potential sources of variability
+##Sex
+```{r}
+#Checking potential differences between males and females
+a <- DimPlot(exp, reduction = "umap", label = T) + labs(title = "Cluster ID") +
+  coord_fixed(ratio = 1) + 
+  NoLegend()
+b <- DimPlot(exp, group.by = "Sex", reduction = "umap", label = F) + labs(title = "Sex") +
+  NoLegend()+
+  coord_fixed(ratio = 1)
+c<-DimPlot(exp, split.by = "Sex", reduction = "umap", label = F) + labs(title = "Sex") +
+  NoLegend()
+  
+#sex.summary
+sex.summary<- exp@meta.data %>% group_by(integrated_snn_res.1.5, Sex) %>% summarise(counts = n()) %>% mutate(ratio = counts/sum(counts))
+d<-ggplot(sex.summary, aes(integrated_snn_res.1.5, ratio, fill = Sex)) + geom_bar(stat = "identity") + theme_minimal() + labs(title = "Ratio of cells coming from male and female mice")
+
+cluster.summary <- exp@meta.data %>% group_by(Sex, integrated_snn_res.1.5) %>% summarise(counts = n()) %>% mutate(ratio = counts/sum(counts))
+e <- ggplot(cluster.summary, aes(Sex, ratio, fill = integrated_snn_res.1.5)) + geom_bar(color = "black", stat = "identity") + theme_minimal()
+
+a+c+b+d+plot_layout(ncol = 2, nrow = 2, widths = c(1, 2))
+
+d+e+plot_layout(nrow = 2)
+
+#Idents(exp)<- "Sex"
+#Idents(exp.b)<- "Sex"
+#Idents(exp.be)<- "Sex"
+#p1<-DimPlot(exp, reduction = "umap", label = F) + labs(title = "Non-regressed data")
+
+#Idents(reg.exp)<-("Sex")
+#p2<-DimPlot(reg.exp, reduction = "umap", label = F) + labs(title = "Regressed data")
+#p1+p2
+
+#DimPlot(exp.be, reduction = "umap", label = F) + labs(title = "Non-regressed data")
+
+#sexmarkers<-FindAllMarkers(exp, only.pos = T)
+#sexmarkers.b<-FindAllMarkers(exp.b, only.pos = T)
+#sexmarkers.be<-FindAllMarkers(exp.be, only.pos = T)
+```
+
+##Barcodes (Samples)
+```{r}
+a <- DimPlot(exp, reduction = "umap", label = T) + labs(title = "Cluster ID") +
+  coord_fixed(ratio = 1) + 
+  NoLegend()
+
+b <- DimPlot(exp, group.by = "MULTI", reduction = "umap", label = F) + labs(title = "Barcodes") +
+  NoLegend()+
+  coord_fixed(ratio = 1)
+
+c<-DimPlot(exp, split.by = "MULTI", reduction = "umap", label = F) + labs(title = "Barcodes") +
+  NoLegend()
+  
+Idents(exp) <- "SCT_snn_res.1.5"
+#barcode.summary
+bc.summary<- exp@meta.data %>% group_by(SCT_snn_res.1.5, MULTI) %>% summarise(counts = n()) %>% mutate(ratio = counts/sum(counts))
+bc.summary$SCT_snn_res.1.5 <- factor(bc.summary$SCT_snn_res.1.5, levels = c(0:35))
+
+d<-ggplot(bc.summary, aes(SCT_snn_res.1.5, ratio, fill = MULTI)) + 
+  geom_bar(stat = "identity") + 
+  scale_fill_manual(name = "Barcodes", values = c()) + 
+  theme_minimal() + labs(title = "Ratio of cells coming from different samples", x= "Cluster") +
+  theme(panel.grid.major.x = element_blank())
+ggsave(filename = "barcode.bars.png", width = 4.5, height = 1.5, scale = 2)
+
+sample.summary<- exp@meta.data %>% group_by(MULTI, SCT_snn_res.1.5) %>% summarise(counts = n()) %>% mutate(ratio = counts/sum(counts))
+e<-ggplot(sample.summary, aes(MULTI, ratio, fill = SCT_snn_res.1.5, ratio)) + geom_bar(col = "black", stat = "identity") + theme_minimal() + labs(title = "Distribution of cell IDs from different samples")
+
+a+c+b+d+plot_layout(ncol = 2, nrow = 2, widths = c(1, 2))
+d+e+plot_layout(nrow = 2)
+
+## Comparing it to the pre-filtering data
+
+#load the pre-filtering seurat object:
+load("~/../../data4/marcos/WC - Mouse 2020/deMultiplex/WC_sctransformed_demultiplexed_2020-05-01.Rdata")
+Idents(experiment.deMPx) <- "SCT_snn_res.0.8"
+
+a <- DimPlot(experiment.deMPx, reduction = "umap", label = T) + labs(title = "Cluster ID") +
+  coord_fixed(ratio = 1) + 
+  NoLegend()
+
+b <- DimPlot(experiment.deMPx, group.by = "MULTI", reduction = "umap", label = F) + labs(title = "Barcodes") +
+  NoLegend()+
+  coord_fixed(ratio = 1)
+
+c<-DimPlot(experiment.deMPx, split.by = "MULTI", reduction = "umap", label = F) + labs(title = "Barcodes") +
+  NoLegend()
+  
+
+#bc.summary
+bc.summary<- experiment.deMPx@meta.data %>% group_by(SCT_snn_res.0.8, MULTI) %>% summarise(counts = n()) %>% mutate(ratio = counts/sum(counts))
+d<-ggplot(bc.summary, aes(SCT_snn_res.0.8, ratio, fill = MULTI)) + geom_bar(stat = "identity") + theme_minimal() + labs(title = "Ratio of cells coming from different samples")
+
+a+c+b+d+plot_layout(ncol = 2, nrow = 2, widths = c(1, 2))
+```
+
+
+##Wells
+```{r}
+#loading b1 and b2 cells ids:
+load("~/../../data4/marcos/WC - Mouse 2020/deMultiplex/troubleshooting/b1.cells.Rdata")
+load("~/../../data4/marcos/WC - Mouse 2020/deMultiplex/troubleshooting/b2.cells.Rdata")
+
+exp@meta.data[b1.cells,"well"] <- "well_1"
+exp@meta.data[b2.cells,"well"] <- "well_2"
+
+#removing cells that were filtered during qc steps
+good.cells<- colnames(exp@assays$SCT@data)
+exp@meta.data <- exp@meta.data[good.cells,]
+saveRDS(exp, file = paste0("experiment.deMPx_filt_norm_", Sys.Date(), ".rds"))
+
+Idents(exp) <- "SCT_snn_res.0.8"
+a <- DimPlot(exp, label = T ) + 
+  NoLegend() + 
+  coord_fixed(ratio = 1)
+b<- DimPlot(exp, reduction = "umap", label =F, group.by = "well") + 
+  coord_fixed(ratio = 1)
+a+b
+
+summary<- exp@meta.data %>% group_by(SCT_snn_res.0.8, well) %>% summarise(counts = n()) %>% mutate(ratio = counts/sum(counts))
+
+                         
+c<-ggplot(summary, aes(SCT_snn_res.0.8, ratio, fill = well)) + geom_bar(stat = "identity") + theme_minimal()
+
+a+b+c
+#There is a batch effect, mostly visible in the ependymal and C cell clusters
+```
+
+
+#Overview
+```{r }
+
+p1<- DimPlot(exp, reduction = "umap", label = TRUE) + NoLegend()
+p2<- FeaturePlot(exp, features = spatialgenes, order = T, col = inferno(100))
+p1 + p2
+
+p3 <- DimPlot(reg.exp, reduction = "umap", label = TRUE)+ NoLegend()
+#FeaturePlot(reg.exp, features = c("Gfap", "S100a6", "Vcam1", "Slc1a3", "Top2a", "Foxj1", "Egfr"), order = T)
+p4 <- FeaturePlot(reg.exp, features = spatialgenes, order = T, col = inferno(100))
+p3 + p4
+
+p4 <- DimPlot(exp.b, reduction = "umap", label = TRUE)+ NoLegend() + xlim(c(-12, 0)) + ylim(c(-5, 10))
+p5 <- FeaturePlot(exp.b, features = spatialgenes, order = T, combine = FALSE)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A")
+fix.x <- xlim(c(-12, 0))
+fix.y <- ylim(c(-5, 10))
+simple <- NoAxes() + NoLegend()
+a <- lapply(p5, function (x) x + fix.sc + fix.x + fix.y + simple)
+p6 <- CombinePlots(a)
+  
+p4 + p6
+```
+
+#Differentially expressed genes
+##B Cells 
+###Cluster 14 vs. 5+22
+Cluster 5+22 seem to correspond to the wedge. Cluster 14 is all the remaining lateral wall?
+```{r}
+#Non-regressed data------
+###logfc threshold = 0.25------
+  markers.14_22.5 <- FindMarkers(exp, ident.1 = "14", ident.2 = c("5",  "22"))
+  markers.14_22.5 <- markers.14_22.5 %>% mutate(gene = rownames(markers.14_22.5))
+  markers.14_22.5 <- markers.14_22.5 %>% mutate(pct.ratio = pct.1/pct.2)
+  
+  wedge.genes <- markers.14_22.5 %>% filter(pct.ratio < 1 & pct.1 < 0.3) %>% arrange(pct.ratio) %>% pull(gene)
+  write.table(wedge.genes, quote = F, row.names = F, col.names = F, "wedge.genes.txt", sep=",")
+  
+  nonwedge.genes <- markers.14_22.5 %>% filter(pct.ratio > 1 & pct.2 < 0.3) %>% arrange(desc(pct.ratio)) %>% pull(gene)  
+  write.table(nonwedge.genes, quote = F, row.names = F, col.names = F, "non.wedge.genes.txt", sep=",")
+  
+```
+####Plots
+```{r}
+#Wedge
+p1 <- FeaturePlot(exp, wedge.genes[1:9], order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+wedge.genes.plot1 <- CombinePlots(p1)
+
+p2 <- FeaturePlot(exp, wedge.genes[10:18], order = T, col = inferno(100), combine = F) 
+p2 <- lapply(p2, function (x) x + fix.sc + simple + coord_fixed())
+wedge.genes.plot2 <- CombinePlots(p2)
+
+p3 <- FeaturePlot(exp, wedge.genes[19:27], order = T, col = inferno(100), combine = F) 
+p3 <- lapply(p3, function (x) x + fix.sc + simple + coord_fixed())
+wedge.genes.plot3 <- CombinePlots(p3)
+
+wedge.genes.plot1
+wedge.genes.plot2
+wedge.genes.plot3
+
+wedge.selected.genes <- c("Hopx", "Egln3", "Urah", "Dio2", "Kcnip4", "Pcdh15")
+
+p1 <- FeaturePlot(exp, wedge.selected.genes, order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+wedge.selected.genes <- CombinePlots(p1)
+ggsave(filename = "wedge.genes.png", width = 6, height = 4, scale =2)
+
+DotPlot(exp.lin, features = wedge.selected.genes, idents = c(14, 5, 22, 13)) + coord_flip()
+ggsave(filename = "wedge.dotplot.png", width = 6, height = 4, scale =2)
+
+#Non-Wedge
+p1 <- FeaturePlot(exp, nonwedge.genes[1:9], order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+nonwedge.genes.plot1 <- CombinePlots(p1)
+
+p2 <- FeaturePlot(exp, nonwedge.genes[10:18], order = T, col = inferno(100), combine = F) 
+p2 <- lapply(p2, function (x) x + fix.sc + simple + coord_fixed())
+nonwedge.genes.plot2 <- CombinePlots(p2)
+
+p3 <- FeaturePlot(exp, nonwedge.genes[19:27], order = T, col = inferno(100), combine = F) 
+p3 <- lapply(p3, function (x) x + fix.sc + simple + coord_fixed())
+nonwedge.genes.plot3 <- CombinePlots(p3)
+
+p4 <- FeaturePlot(exp, nonwedge.genes[28:36], order = T, col = inferno(100), combine = F) 
+p4 <- lapply(p4, function (x) x + fix.sc + simple + coord_fixed())
+nonwedge.genes.plot4 <- CombinePlots(p4)
+
+p5 <- FeaturePlot(exp, nonwedge.genes[37], order = T, col = inferno(100), combine = F) 
+p5 <- lapply(p5, function (x) x + fix.sc + simple + coord_fixed())
+nonwedge.genes.plot5 <- CombinePlots(p5)
+
+nonwedge.genes.plot1
+nonwedge.genes.plot2
+nonwedge.genes.plot3
+nonwedge.genes.plot4
+nonwedge.genes.plot5
+
+nonwedge.selected.genes <- c("Crym", "Dpyd", "Lmo1", "Nkx6-2", "C1ql3", "Tmem176a", "Car8", "Necab2")
+p1 <- FeaturePlot(exp, nonwedge.selected.genes, order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+nonwedge.selected.genes <- wrap_plots(p1, nrow = 2)
+ggsave(filename = "nonwedge.genes.png", width = 6, height = 4, scale =2)
+
+```
+
+###FindAllMarkers: 5 x 22 x 14
+```{r}
+exp.b <- subset(exp, idents = c("5", "14", "22"))
+
+b.markers <- FindAllMarkers(exp.b, only.pos = T, logfc.threshold = 0.1)
+b.markers <- b.markers %>% mutate(pct.ratio = pct.1/pct.2)
+cluster5.genes <- b.markers %>% filter(cluster == 5 & pct.1 > 0.3 & pct.2 < 0.2) %>% arrange(desc(avg_logFC)) %>% pull(gene)
+cluster22.genes <- b.markers %>% filter(cluster == 22 & pct.1 > 0.3 & pct.2 < 0.2) %>% arrange(desc(avg_logFC)) %>% pull(gene)
+cluster14.genes <- b.markers %>% filter(cluster == 14 & pct.1 > 0.3 & pct.2 < 0.2) %>% arrange(desc(avg_logFC)) %>% pull(gene)
+```
+
+####TFs
+```{r}
+tf <- read_csv("/data4/marcos/WC_Mouse.2020/Mouse_TFs.csv", 
+    col_names = FALSE)
+tf <- pull(tf[1])
+
+cluster14.tf <- cluster14.genes[cluster14.genes %in% tf]
+cluster5.tf <- cluster5.genes[cluster5.genes %in% tf]
+cluster22.tf <- cluster22.genes[cluster22.genes %in% tf]
+wedge.tf <- wedge.genes[wedge.genes %in% tf]
+
+#Plots
+p1 <- FeaturePlot(exp, cluster14.tf, order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+wrap_plots(p1, nrow = 1)
+ggsave(filename = "cluster14.tf.png", height = 5, scale = 2)
+
+p1 <- FeaturePlot(exp, cluster5.tf, order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+wrap_plots(p1, nrow = 1)
+ggsave(filename = "cluster5.tf.png", height = 5, scale = 2)
+
+p1 <- FeaturePlot(exp, cluster22.tf, order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+wrap_plots(p1, nrow = 1)
+ggsave(filename = "cluster22.tf.png", height = 5, scale = 2)
+
+p1 <- FeaturePlot(exp, wedge.tf, order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+wrap_plots(p1, nrow = 1)
+ggsave(filename = "wedge.tf.png", height = 5, scale = 2)
+
+```
+
+
+####Plots
+```{r}
+#cluster 5
+p1 <- FeaturePlot(exp, cluster5.genes[1:12], order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+wrap_plots(p1, nrow = 3)
+ggsave(filename = "cluster5.genes.png", width = 9, height = 5, scale = 2)
+
+#cluster 22
+p1 <- FeaturePlot(exp, cluster22.genes[1:15], order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+wrap_plots(p1, ncol = 5)
+ggsave(filename = "cluster22.genes.png", width = 10, height = 5, scale = 2)
+
+p1 <- FeaturePlot(exp, cluster22.genes[16:25], order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+wrap_plots(p1, ncol = 5)
+ggsave(filename = "cluster22.genes2.png", width = 9, height = 5, scale = 2)
+
+##Curated list of genes
+cluster22.genes.curated <- c("Cntnap2", "Pcdh15", "Kctd1","Rn7sk", "Csmd2", "Gm26804")
+
+p1 <- FeaturePlot(exp, cluster22.genes.curated , order = T, col = inferno(100), combine = F) 
+p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+wrap_plots(p1, ncol = 3)
+ggsave(filename = "cluster22.genes.curated.png", width = 7, height = 5, scale = 2)
+
+#cluster 14
+
+
+
+#p1 <- FeaturePlot(exp, cluster22.genes[31:45], order = T, col = inferno(100), combine = F) 
+#p1 <- lapply(p1, function (x) x + fix.sc + simple + coord_fixed())
+#wrap_plots(p1, ncol = 5)
+#ggsave(filename = "cluster22.genes3.png", width = 9, height = 5, scale = 2)
+```
+
+
+
+##Old B cell analysis
+```{r}
+  b.markers.v <-rownames(FindMarkers(exp, ident.1 = 14, ident.2 = 22, only.pos = T))
+  b.markers.d <-rownames(FindMarkers(exp, ident.1 = 22, ident.2 = 14, only.pos = T))
+  write.table(b.markers.v, quote = F, row.names = F, col.names = F, paste0("b.markers.v_", Sys.Date(),".txt"), sep=",")
+  write.table(b.markers.d, quote = F, row.names = F, col.names = F, paste0("b.markers.d_", Sys.Date(),".txt"), sep=",")
+
+  ###logfc threshold = 0.1------
+  markers.14_22.plus <- FindMarkers(exp, ident.1 = "14", ident.2 = "22", logfc.threshold = 0.1)
+  markers.14_22.plus <- markers.14_22.plus %>% mutate(gene = rownames(markers.14_22.plus))
+  markers.14_22.plus <- markers.14_22.plus %>% mutate(pct.ratio = pct.1/pct.2)
+
+  b.markers.v.plus <-rownames(FindMarkers(exp, ident.1 = 14, ident.2 = 22, only.pos = T, logfc.threshold = 0.1))
+  b.markers.d.plus <-rownames(FindMarkers(exp, ident.1 = 22, ident.2 = 14, only.pos = T, logfc.threshold = 0.1))
+  write.table(b.markers.v.plus, quote = F, row.names = F, col.names = F, paste0("b.markers.v.plus_", Sys.Date(),".txt"), sep=",")
+  write.table(b.markers.d.plus, quote = F, row.names = F, col.names = F, paste0("b.markers.d.plus_", Sys.Date(),".txt"), sep=",")
+
+##Ventral
+p1 <- FeaturePlot(exp, features = b.markers.v[1:20], combine = FALSE, pt.size = 1, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend() 
+p2 <- lapply(p1, function (x) x + fix.sc + simple)
+
+Plot1 <- CombinePlots(p2)
+Plot1 + plot_annotation(
+  title = "Putative Ventral markers",
+  subtitle = "Identified by detecting DE genes between Clusters 14 and 22 (B cells)",
+  caption = paste0("Generated on ", format(Sys.time(), "%D"), ". Code available on ", "spatial.id_lineage.Rmd"))
+
+##Dorsal
+p3 <- FeaturePlot(exp, features = b.markers.d[1:20], combine = FALSE, pt.size = 1, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend() 
+p4 <- lapply(p3, function (x) x + fix.sc + simple)
+
+Plot2 <- CombinePlots(p4)
+Plot2 + plot_annotation(
+  title = "Putative Dorsal markers",
+  subtitle = "Identified by detecting DE genes between Clusters 14 and 22 (B cells)",
+  caption = paste0("Generated on ", format(Sys.time(), "%D"), ". Code available on ", "spatial.id_lineage.Rmd"))
+```
+
+##C Cells (Cluster 12 vs. 10)
+```{r}
+#Non-regressed data------
+###logfc threshold = 0.25------
+  markers.12_10 <- FindMarkers(exp, ident.1 = "12", ident.2 = "10", logfc.threshold = 0.25)
+  markers.12_10 <- markers.12_10 %>% mutate(gene = rownames(markers.12_10))
+  markers.12_10 <- markers.12_10 %>% mutate(pct.ratio = pct.1/pct.2)
+
+  c.markers.v <-rownames(FindMarkers(exp, ident.1 = 12, ident.2 = 10, only.pos = T))
+  c.markers.d <-rownames(FindMarkers(exp, ident.1 = 10, ident.2 = 12, only.pos = T))
+  write.table(c.markers.v, quote = F, row.names = F, col.names = F, paste0("c.markers.v_", Sys.Date(),".txt"), sep=",")
+  write.table(c.markers.d, quote = F, row.names = F, col.names = F, paste0("c.markers.d_", Sys.Date(),".txt"), sep=",")
+
+  ###logfc threshold = 0.1------
+  markers.12_10.plus <- FindMarkers(exp, ident.1 = "12", ident.2 = "10", logfc.threshold = 0.1)
+  markers.12_10.plus <- markers.12_10.plus %>% mutate(gene = rownames(markers.12_10.plus))
+  markers.12_10.plus <- markers.12_10.plus %>% mutate(pct.ratio = pct.1/pct.2)
+
+  c.markers.v.plus <-rownames(FindMarkers(exp, ident.1 = 12, ident.2 = 10, only.pos = T, logfc.threshold = 0.1))
+  c.markers.d.plus <-rownames(FindMarkers(exp, ident.1 = 10, ident.2 = 12, only.pos = T, logfc.threshold = 0.1))
+  write.table(c.markers.v.plus, quote = F, row.names = F, col.names = F, paste0("c.markers.v.plus_", Sys.Date(),".txt"), sep=",")
+  write.table(c.markers.d.plus, quote = F, row.names = F, col.names = F, paste0("c.markers.d.plus_", Sys.Date(),".txt"), sep=",")
+  
+
+```
+###Plots
+```{r}
+##Ventral
+p1 <- FeaturePlot(exp, features = c.markers.v[1:20], combine = FALSE, pt.size = 1, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend() 
+p2 <- lapply(p1, function (x) x + fix.sc + simple)
+
+Plot1 <- CombinePlots(p2)
+Plot1 + plot_annotation(
+  title = "Putative Ventral markers",
+  subtitle = "Identified by detecting DE genes between Clusters 12 and 10 (C cells)",
+  caption = paste0("Generated on ", format(Sys.time(), "%D"), ". Code available on ", "spatial.id_lineage.Rmd"))
+
+##Dorsal
+p3 <- FeaturePlot(exp, features = c.markers.d[1:20], combine = FALSE, pt.size = 1, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend() 
+p4 <- lapply(p3, function (x) x + fix.sc + simple)
+
+Plot2 <- CombinePlots(p4)
+Plot2 + plot_annotation(
+  title = "Putative Dorsal markers",
+  subtitle = "Identified by detecting DE genes between Clusters 12 and 10 (C cells)",
+  caption = paste0("Generated on ", format(Sys.time(), "%D"), ". Code available on ", "spatial.id_lineage.Rmd"))
+```
+##A Cells (Cluster 1 vs. 0)
+```{r}
+#Non-regressed data------
+###logfc threshold = 0.25------
+  markers.1_0 <- FindMarkers(exp, ident.1 = "1", ident.2 = "0", logfa.threshold = 0.25)
+  markers.1_0 <- markers.1_0 %>% mutate(gene = rownames(markers.1_0))
+  markers.1_0 <- markers.1_0 %>% mutate(pct.ratio = pct.1/pct.2)
+
+  a.markers.v <-rownames(FindMarkers(exp, ident.1 = 1, ident.2 = 0, only.pos = T))
+  a.markers.d <-rownames(FindMarkers(exp, ident.1 = 0, ident.2 = 1, only.pos = T))
+  write.table(a.markers.v, quote = F, row.names = F, col.names = F, paste0("a.markers.v_", Sys.Date(),".txt"), sep=",")
+  write.table(a.markers.d, quote = F, row.names = F, col.names = F, paste0("a.markers.d_", Sys.Date(),".txt"), sep=",")
+```
+
+###Plots
+```{r}
+##Ventral
+p1 <- FeaturePlot(exp, features = a.markers.v[1:20], combine = FALSE, pt.size = 1, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend() 
+p2 <- lapply(p1, function (x) x + fix.sc + simple)
+
+Plot1 <- CombinePlots(p2)
+Plot1 + plot_annotation(
+  title = "Putative Ventral markers",
+  subtitle = "Identified by detecting DE genes between Clusters 1 and 0 (A cells)",
+  caption = paste0("Generated on ", format(Sys.time(), "%D"), ". Code available on ", "spatial.id_lineage.Rmd"))
+
+##Dorsal
+p3 <- FeaturePlot(exp, features = a.markers.d[1:20], combine = FALSE, pt.size = 1, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend() 
+p4 <- lapply(p3, function (x) x + fix.sc + simple)
+
+Plot2 <- CombinePlots(p4)
+Plot2 + plot_annotation(
+  title = "Putative Dorsal markers",
+  subtitle = "Identified by detecting DE genes between Clusters 1 and 0 (A cells)",
+  caption = paste0("Generated on ", format(Sys.time(), "%D"), ". Code available on ", "spatial.id_lineage.Rmd"))
+
+```
+
+
+#Test
+```{r}
+#single gene
+FeaturePlot(exp, "Adgrl3", order = T) + scale_color_viridis(option = "A") + coord_fixed()
+
+#Lineagenes
+v.lineagenes <- c("Adgrl3", "Slit2")
+d.lineagenes <- c("Pax6", "Rlbp1", "Gm29260", "Dab1")
+
+a<-DimPlot(exp, label = T, pt.size = 1) + coord_fixed()+ fix.x + NoLegend() + NoAxes()
+v.p1<- FeaturePlot(exp, v.lineagenes, order = T, combine = FALSE, pt.size = 1)
+d.p1<- FeaturePlot(exp, d.lineagenes, order = T, combine = FALSE, pt.size = 1)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A")
+fix.x <- xlim(c(-10, 7))
+#fix.y <- ylim(c(-5, 10))
+simple <- NoAxes() + NoLegend()
+v.p2 <- lapply(v.p1, function (x) x + fix.x + fix.sc + simple + coord_fixed())
+d.p2 <- lapply(d.p1, function (x) x + fix.x + fix.sc + simple + coord_fixed())
+
+d.lineagenesplots <- CombinePlots(d.p2) + plot_annotation(subtitle = "Genes expressed throughout dorsal Lineage", theme = theme(plot.title = element_text(hjust= 0.5)))
+
+v.lineagenesplots <- CombinePlots(v.p2) + plot_annotation(subtitle = "Genes expressed throughout ventral Lineage", theme = theme(plot.title = element_text(hjust= 0.5)))
+#Overview Plots
+a+d.lineagenesplots + v.lineagenesplots
+
+Idents(exp) <- "integrated_snn_res.1.5"
+DimPlot(exp, label = T)
+
+```
+
+#Lineage Analysis
+##Subsetting the neurogenic lineage
+```{r}
+exp.lin <- subset(exp, idents = c("14", "5", "22", "13", "12", "10", "16", "17", "8", "15", "1", "6", "4", "0"))
+DimPlot(exp.lin, label = T) + coord_fixed() + NoAxes() + NoLegend()
+saveRDS(exp.lin, file = "exp.lin.rds")
+```
+##Grouping B and A cells by putative regions
+```{r}
+Idents(exp.lin) <- "integrated_snn_res.1.5"
+v.bcells <- WhichCells(exp.lin, idents = 14)
+d.bcells <- WhichCells(exp.lin, idents = c(22,5))
+
+v.acells <- WhichCells(exp.lin, idents = 1)
+d.acells <- WhichCells(exp.lin, idents = 0)
+
+exp.lin@meta.data[v.bcells,  "region"] <- "B ventral"
+exp.lin@meta.data[v.acells,  "region"] <- "A ventral"
+exp.lin@meta.data[d.bcells,  "region"] <- "B dorsal"
+exp.lin@meta.data[d.acells,  "region"] <- "A dorsal"
+
+Idents(exp.lin) <- "region"
+Idents(exp.lin) <- factor(Idents(exp.lin),levels = c("B ventral", "A ventral", "B dorsal", "A dorsal"))
+
+lin.palette = c("#7b3294","#DC11D8",  "#008837", "#00B277")
+lin.palette2 = c("#7700c2", "#8e2ccd", "#43c690", "#3d9398")
+
+DimPlot(exp.lin, cols = lin.palette, shuffle = T, na.value = "grey85") + coord_fixed() + xlim(-6, 7) + ylim(-15, 8) + NoAxes()
+ggsave("dorsalandventralabcells.png", width = 2, height = 2, scale= 2)
+```
+
+##Markers
+```{r}
+Idents(exp.lin) <- "region"
+b.region.markers <- FindMarkers(exp.lin, ident.1 = "B ventral", ident.2 = "B dorsal", logfc.threshold = 0.1)
+a.region.markers <- FindMarkers(exp.lin, ident.1 = "A ventral", ident.2 = "A dorsal", logfc.threshold = 0.1)
+saveRDS(b.region.markers, file = "b.region.markers.rds")
+saveRDS(a.region.markers, file = "a.region.markers.rds")
+
+#Cluster markers using a regular avg_logFC threshold
+b.ventral.markers <- rownames(b.region.markers %>% filter(avg_logFC >0.25 & pct.2 < 0.5) %>% arrange(avg_logFC))
+b.dorsal.markers <- rownames(b.region.markers %>% filter(avg_logFC < -0.25 & pct.1 < 0.5) %>% arrange(avg_logFC))
+a.ventral.markers <- rownames(a.region.markers %>% filter(avg_logFC >0.25 & pct.2 < 0.5) %>% arrange(avg_logFC))
+a.dorsal.markers <- rownames(a.region.markers %>% filter(avg_logFC < -0.25 & pct.1< 0.5) %>% arrange(avg_logFC))
+
+#Cluster markers using a lower avg_logFC threshold, i.e.: more genes
+b.ventral.markers.plus <- rownames(b.region.markers %>% filter(avg_logFC >0.10))
+b.dorsal.markers.plus <- rownames(b.region.markers %>% filter(avg_logFC < -0.10))
+a.ventral.markers.plus <- rownames(a.region.markers %>% filter(avg_logFC >0.10))
+a.dorsal.markers.plus <- rownames(a.region.markers %>% filter(avg_logFC < -0.10))
+
+#All differentially expressed genes 
+b.ventral.markers.all <- rownames(b.region.markers %>% filter(avg_logFC > 0))
+b.dorsal.markers.all <- rownames(b.region.markers %>% filter(avg_logFC < 0))
+a.ventral.markers.all <- rownames(a.region.markers %>% filter(avg_logFC > 0))
+a.dorsal.markers.all <- rownames(a.region.markers %>% filter(avg_logFC < 0))
+
+write.table(b.ventral.markers, quote = F, row.names = F, col.names = F, "markers.and.go/markers.025/norm.top75genes/b.ventral.markers.txt", sep=",")
+write.table(b.dorsal.markers, quote = F, row.names = F, col.names = F, "markers.and.go/markers.025/norm.top75genes/b.dorsal.markers.txt", sep=",")
+write.table(a.ventral.markers, quote = F, row.names = F, col.names = F, "markers.and.go/markers.025/norm.top75genes/a.ventral.markers.txt", sep=",")
+write.table(a.dorsal.markers, quote = F, row.names = F, col.names = F, "markers.and.go/markers.025/norm.top75genes/a.dorsal.markers.txt", sep=",")
+
+write.table(b.ventral.markers.all, quote = F, row.names = F, col.names = F, "markers.and.go/markers.all/b.ventral.markers.all.txt", sep=",")
+write.table(b.dorsal.markers.all, quote = F, row.names = F, col.names = F, "markers.and.go/markers.all/b.dorsal.markers.all.txt", sep=",")
+write.table(a.ventral.markers.all, quote = F, row.names = F, col.names = F, "markers.and.go/markers.all/a.ventral.markers.all.txt", sep=",")
+write.table(a.dorsal.markers.all, quote = F, row.names = F, col.names = F, "markers.and.go/markers.all/a.dorsal.markers.all.txt", sep=",")
+
+#lineage markers are identified by looking at the genes that are present both in B and A cells for a given lineage
+##Ventral
+v.lineage.markers <- intersect(b.ventral.markers, a.ventral.markers)
+v.lineage.markers.ctrl <- intersect(b.ventral.markers, a.dorsal.markers)
+v.lineage.markers.plus <- intersect(b.ventral.markers.plus, a.ventral.markers.plus)
+##Dorsal
+d.lineage.markers <- intersect(b.dorsal.markers, a.dorsal.markers)
+d.lineage.markers.ctrl <- intersect(b.dorsal.markers, a.ventral.markers)
+d.lineage.markers.plus <- intersect(b.dorsal.markers.plus, a.dorsal.markers.plus)
+
+#Alternative versions of lineage markers:
+##Originals:
+#v.lineage.markers <- c("Adgrl3", "Ptprt", "Slit2", "Pbx1", "Ptprn2", "Sntb1", "B3galt1", "Nrcam")
+#d.lineage.markers <- c("Slc15a2", "Rlbp1", "Gm29260", "Pax6", "Dcc")
+
+##Alternative:
+#v.lineage.markers <- c("Adgrl3", "Ptprt", "Slit2", "Ptprn2", "Sntb1")
+#d.lineage.markers <- c("Slc15a2", "Rlbp1", "Gm29260", "Pax6", "Dcc")
+```
+
+##Plots
+```{r}
+##Ventral
+p1 <- FeaturePlot(exp.lin, features = v.lineage.markers, combine = FALSE, pt.size = 0.2, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend() 
+Plot1 <- lapply(p1, function (x) x + coord_fixed() + fix.sc + xlim(-6, 7) + ylim(-15, 8) + simple)
+
+wrap_plots(Plot1, nrow = 1) + plot_annotation(
+  title = "Putative Ventral Lineage Markers",
+  subtitle = "Identified by grouping putative ventral B and A cells",
+  caption = paste0("Generated on ", format(Sys.time(), "%D"), ". Code available on ", "spatial.id_lineage.Rmd"))
+
+ggsave("v.lineage.genes.png", width = 5, height = 3, scale = 2)
+
+
+##Dorsal
+p2 <- FeaturePlot(exp.lin, features = d.lineage.markers, combine = FALSE, pt.size = 0.2, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend() 
+Plot2 <- lapply(p2, function (x) x + coord_fixed() +  fix.sc + xlim(-6, 7) + ylim(-15, 8) + simple)
+
+wrap_plots(Plot2, nrow = 1) + 
+  plot_annotation(
+    title = "Putative Dorsal Lineage Markers",
+    subtitle = "Identified by grouping putative dorsal B and A cells",
+    caption = paste0("Generated on ", format(Sys.time(), "%D"), ". Code available on ", "spatial.id_lineage.Rmd"))
+
+ggsave("d.lineage.genes.png", width = 5, height = 3, scale = 2)
+```
+###Control plots
+```{r}
+#Plotting the intesection between ventral B and dorsal a cells:
+p1 <- FeaturePlot(exp.lin, features = v.lineage.markers.ctrl, combine = FALSE, pt.size = 0.4, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend() 
+Plot1 <- lapply(p1, function (x) x + coord_fixed() + fix.sc + xlim(-6, 7) + ylim(-15, 8) + simple)
+
+wrap_plots(Plot1, nrow = 1) + plot_annotation(
+  title = "Control plot",
+  subtitle = "Markers Ventral B and Dorsal A cells have in common",
+  caption = paste0("Generated on ", format(Sys.time(), "%D"), ". Code available on ", "spatial.id_lineage.Rmd"))
+ggsave("v.lineage.genes.ctrl.png", scale = 2)
+
+#Plotting the intesection between dorsal B and ventral a cells:
+p1 <- FeaturePlot(exp.lin, features = d.lineage.markers.ctrl, combine = FALSE, pt.size = 0.4, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend() 
+Plot1 <- lapply(p1, function (x) x + coord_fixed() + fix.sc + xlim(-6, 7) + ylim(-15, 8) + simple)
+
+wrap_plots(Plot1, nrow = 1) + plot_annotation(
+  title = "Control plot",
+  subtitle = "Markers Dorsal B and Ventral A cells have in common",
+  caption = paste0("Generated on ", format(Sys.time(), "%D"), ". Code available on ", "spatial.id_lineage.Rmd"))
+ggsave("d.lineage.genes.ctrl.png", scale = 2)
+```
+
+
+#Violin plot
+```{r}
+## remove the x-axis text and tick
+## plot.margin to adjust the white space between each plot.
+## ... pass any arguments to VlnPlot in Seurat
+modify_vlnplot<- function(obj, 
+                          feature, 
+                          pt.size = 0, 
+                          plot.margin = unit(c(-0.75, 0, -0.75, 0), "cm"),
+                          ...) {
+  p<- VlnPlot(obj, features = feature, pt.size = pt.size, ... )  + 
+    xlab("") + ylab(feature) + ggtitle("") + 
+    theme(legend.position = "none", 
+          plot.title= element_blank(),
+          axis.title.x = element_blank(),
+          axis.text.x = element_blank(), 
+          axis.ticks.x = element_blank(), 
+          axis.title.y = element_text(size = rel(1), angle = 0), 
+          axis.text.y = element_text(size = rel(1)), 
+          plot.margin = plot.margin ) 
+  return(p)
+}
+## extract the max value of the y axis
+extract_max<- function(p){
+  ymax<- max(ggplot_build(p)$layout$panel_scales_y[[1]]$range$range)
+  return(ceiling(ymax))
+}
+## main function
+StackedVlnPlot<- function(obj, features,
+                          pt.size = 0, 
+                          plot.margin = unit(c(-0.75, 0, -0.75, 0), "cm"),
+                          ...) {
+  plot_list<- purrr::map(features, function(x) modify_vlnplot(obj = obj,feature = x, ...))
+  # Add back x-axis title to bottom plot. patchwork is going to support this?
+  plot_list[[length(plot_list)]]<- plot_list[[length(plot_list)]] +
+    theme(axis.text.x=element_text(), axis.ticks.x = element_line())
+  # change the y-axis tick to only max value 
+  ymaxs<- purrr::map_dbl(plot_list, extract_max)
+  plot_list<- purrr::map2(plot_list, ymaxs, function(x,y) x + 
+                            scale_y_continuous(breaks = c(y)) + 
+                            expand_limits(y = y))
+  p<- patchwork::wrap_plots(plotlist = plot_list, ncol = 1)
+  return(p)
+}
+
+StackedVlnPlot(obj = exp.lin, features = v.lineage.markers) + plot_annotation(title = "Ventral Lineage Markers", caption = paste0("Generated on ", Sys.Date(), ". Code available at spatial id analysis."))
+
+StackedVlnPlot(obj = exp.lin, features = d.lineage.markers) + plot_annotation(title = "Dorsal Lineage Markers", caption = paste0("Generated on ", Sys.Date(), ". Code available at spatial id analysis."))
+VlnPlot(exp.lin,  features ="Urah", pt.size = 0)
+
+```
+#GO Analysis
+##Loadind data from panther
+```{r}
+#importing the data exported from panther. I exported each condition (dorsal A and B cells, ventral A and B cells and Dorsal and Ventral lineages.) as a different .txt file and I will load each file as a distinct table on R 
+
+b.dorsal.go <- read_delim("markers.and.go/markers.025/b.dorsal.go.txt", 
+    "\t", escape_double = FALSE, col_names = c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr"), 
+    trim_ws = TRUE, skip = 12)
+
+b.ventral.go <- read_delim("markers.and.go/markers.025/b.ventral.go.txt", 
+    "\t", escape_double = FALSE, col_names = c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr"), 
+    trim_ws = TRUE, skip = 12)
+
+a.dorsal.go <- read_delim("markers.and.go/markers.025/a.dorsal.go.txt", 
+    "\t", escape_double = FALSE, col_names = c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr"), 
+    trim_ws = TRUE, skip = 12)
+
+a.ventral.go <- read_delim("markers.and.go/markers.025/a.ventral.go.txt", 
+    "\t", escape_double = FALSE, col_names = c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr"), 
+    trim_ws = TRUE, skip = 12)
+
+dorsal.go <- read_delim("markers.and.go/markers.025/dorsal.go.txt", 
+    "\t", escape_double = FALSE, col_names = c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr"), 
+    trim_ws = TRUE, skip = 12)
+
+ventral.go <- read_delim("markers.and.go/markers.025/ventral.go.txt", 
+    "\t", escape_double = FALSE, col_names = c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr"), 
+    trim_ws = TRUE, skip = 12)
+
+
+#Merging all tables into a single mega table with all the data. Instead of creating a column called "identity" on line 238, you can name it to whatever you are comparing (Could be "identity" as you will be comparing NSC and parenchymal astrocytes)
+go.cat.n <- nrow(b.dorsal.go)
+go.data <- do.call("rbind", list(b.dorsal.go, b.ventral.go, a.dorsal.go, a.ventral.go, dorsal.go, ventral.go))
+go.data %>% mutate(fold.enrich = go.data$obs/go.data$expected)
+go.data[1:go.cat.n,"identity"] <- "B Dorsal"
+go.data[(1+go.cat.n):(2*go.cat.n),"identity"] <- "B Ventral"
+go.data[(1+(2*go.cat.n)):(3*go.cat.n),"identity"] <- "A Dorsal"
+go.data[(1+(3*go.cat.n)):(4*go.cat.n),"identity"] <- "A Ventral"
+go.data[(1+(4*go.cat.n)):(5*go.cat.n),"identity"] <- "Dorsal Lineage"
+go.data[(1+(5*go.cat.n)):(6*go.cat.n),"identity"] <- "Ventral Lineage"
+
+order <- c("B Dorsal", "A Dorsal", "Dorsal Lineage", "B Ventral", "A Ventral", "Ventral Lineage") #order of the groups you are comparing
+
+go.data$identity <- factor(go.data$identity, levels = order)
+
+```
+
+##Choosing categories to display
+```{r}
+#There are many ways of determining which categories to display. Here I will first filter out categories with very little or too many genes, that's what the "filter(ref >5 & ref <50"does. I am also filtering for categories with a raw p value < 0.01 and adjusted p value of <0.05. And then I pick the top 10 of each identity.
+go.cats <- rev(unique(go.data %>% filter(ref > 5 & ref < 50 & fdr < 0.05) %>% group_by(identity) %>% slice_max(n = 30, order_by = fold.enrich, with_ties = F) %>% pull(go)))
+
+
+#You may still find several redundant or somewhat irrelevant categories. I used the list of categories generated on line 242 as a starting point and ended up making my own set of categories manually: 
+go.cats <- rev(c(
+  "glial cell fate commitment (GO:0021781)",
+  "positive regulation of vascular associated smooth muscle cell migration (GO:1904754)",
+  "central nervous system projection neuron axonogenesis (GO:0021952)",
+  "regulation of vascular associated smooth muscle cell migration (GO:1904752)",
+  "central nervous system neuron axonogenesis (GO:0021955)",
+  "presynapse assembly (GO:0099054)",
+  "postsynapse assembly (GO:0099068)",
+  "positive regulation of excitatory postsynaptic potential (GO:2000463)",
+  "NMDA glutamate receptor clustering (GO:0097114)",
+  "cerebral cortex regionalization (GO:0021796)",
+  "detoxification of copper ion (GO:0010273)",
+  "olfactory bulb interneuron differentiation (GO:0021889)",
+  "telencephalon regionalization (GO:0021978)",
+  "adrenal gland development (GO:0030325)",
+  "negative regulation of glial cell differentiation (GO:0045686)",
+  "positive regulation of extrinsic apoptotic signaling pathway via death domain receptors (GO:1902043)",
+  "response to growth hormone (GO:0060416)",
+  "regulation of amyloid precursor protein biosynthetic process (GO:0042984)",
+  "retinal ganglion cell axon guidance (GO:0031290)",
+  "glomerulus development (GO:0032835)",
+  "mechanosensory behavior (GO:0007638)",
+  "regulation of axon extension involved in axon guidance (GO:0048841)",
+  "negative regulation of axon extension (GO:0030517)",
+  "negative regulation of neural precursor cell proliferation (GO:2000178)",
+  "negative chemotaxis (GO:0050919)",
+  "G protein-coupled glutamate receptor signaling pathway (GO:0007216)",
+  "cellular response to fluid shear stress (GO:0071498)",
+  "synaptic transmission, glutamatergic (GO:0035249)",
+  "regulation of sprouting angiogenesis (GO:1903670)",
+  "tangential migration from the subventricular zone to the olfactory bulb (GO:0022028)"
+  ))
+  
+
+```
+
+##Plotting
+```{r}
+#Now you will create another table with the information you want to plot, in the order you want them to appear in the plot:
+order <- c("B Dorsal", "A Dorsal", "Dorsal Lineage", "B Ventral", "A Ventral", "Ventral Lineage") #order of the groups you are comparing
+
+df.all<- go.data %>% filter(go %in% go.cats)
+#df.all$fold.enrich <- as.numeric(df.all$fold.enrich)
+#df.all <- df.all %>% mutate(fold.enrich = replace_na(fold.enrich, 0))
+#df.all$fold.enrich <- as.numeric(df.all$fold.enrich)
+df.all <- df.all %>% mutate(fold.enrich = obs/expected)
+df.all <- df.all %>% mutate(sig = ifelse(fdr < 0.05, T, F))
+df.all$identity <- factor(df.all$identity, levels = order)
+df.all$go <- factor(df.all$go, levels = go.cats)
+df.all <- df.all %>% mutate(fdr2 = ifelse(sig == T, fdr, NA))
+
+
+#Making the plot
+ggplot(df.all, aes(identity, go)) + 
+  geom_point(aes(col = fdr2, size = fold.enrich)) + 
+  scale_color_gradient(name = "Adjusted p-value", low = "#de2d26", high = "#fee0d2", na.value = "grey75")  + 
+  #scale_color_manual(name = NULL, labels = c("FDR p > 0.05", "FDR p < 0.05"), values = go.palette) + 
+  scale_size(name = "Fold enrichment") +
+  #scale_x_discrete(labels=c("Cluster 1" = "1", "Cluster 0" = "0", "Cluster 4" = "4", "Cluster 6" = "6", "Cluster 15" = "15")) +
+  theme_minimal() + 
+  theme(panel.grid.major = element_blank(), axis.title = element_blank(), axis.text.x.bottom = element_text(hjust = 1, angle =45), legend.position = "bottom", legend.direction = "vertical")
+
+#Exporting as a high-resolution png
+ggsave(filename = "identity.go.dotplot.png", width = 3.4, height = 4.2, scale =2)
+```
+
+
+
+##Pathways
+```{r}
+ventral_paths <- read_delim("/data4/marcos/WC_Mouse.2020/ventral.paths.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 11)
+colnames(ventral_paths) <- c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr")
+ventral_paths["identity"] <- "Ventral"
+ventral_paths<- ventral_paths[1:5,]
+
+
+dorsal_paths <- read_delim("/data4/marcos/WC_Mouse.2020/dorsal.paths.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 11)
+colnames(dorsal_paths) <- c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr")
+
+dorsal_paths <- dorsal_paths %>% filter(go %in% ventral_paths$go)
+dorsal_paths["identity"] <- "Dorsal"
+dorsal_paths$fold.enrich <- as.numeric(dorsal_paths$fold.enrich)
+dorsal_paths <- dorsal_paths %>% mutate(fold.enrich = replace_na(fold.enrich, 0))
+dorsal_paths$fold.enrich <- as.numeric(dorsal_paths$fold.enrich)
+
+paths <- rbind(ventral_paths, dorsal_paths, deparse.level = 0)
+paths <- paths %>% mutate(sig = ifelse(fdr < 0.05, T, F))
+df.all <- rbind(df.all, paths, deparse.level = 0)
+
+ggplot(paths, aes(identity, go)) + 
+  geom_point(aes(col = sig, size = fold.enrich)) + 
+  scale_color_manual(name = NULL, labels = c("FDR p > 0.05", "FDR p < 0.05"), values = viridis(2, direction = -1)) + 
+  scale_size(name = "Fold enrichment") +
+  #scale_x_discrete(labels=c("Cluster 1" = "1", "Cluster 0" = "0", "Cluster 4" = "4", "Cluster 6" = "6", "Cluster 15" = "15")) +
+  theme_minimal() + 
+  theme(panel.grid.major = element_blank(), axis.title = element_blank(), legend.position = "bottom", legend.direction = "horizontal")
+
+#ggsave(filename = "identity.paths.dotplot.png", width = 2, height = 1.5, scale =2)
+```
+
+##Investigating differences between dorsal and ventral
+```{r}
+ventral.glut <- c("Grm8", "Cacng4", "Gria4", "Kalrn", "Grik3", "Cacng2", "Syt1", "Dgki")
+
+dorsal.glut <- c("Nlgn1", "Nrxn1")
+
+p1 <- FeaturePlot(exp.lin, features = ventral.glut, combine = FALSE, order = T)
+Plot1 <- lapply(p1, function (x) x + coord_fixed() + xlim(-6, 7) + ylim(-15, 8) + fix.sc + simple)
+wrap_plots(Plot1)
+
+p1 <- FeaturePlot(exp.lin, features = dorsal.glut, combine = FALSE, order = T)
+Plot1 <- lapply(p1, function (x) x + coord_fixed() + xlim(-6, 7) + ylim(-15, 8) + fix.sc + simple)
+wrap_plots(Plot1)
+
+VlnPlot(exp.lin, features = ventral.glut, idents = c("0", "1"), pt.size = 0)
+VlnPlot(exp.lin, features = dorsal.glut, idents = c("0", "1"), pt.size = 0)
+
+```
+
+
+
+
+
+
+#Pseudotime
+```{r}
+#load the exp.lin object with the auc lineage scores:
+#exp.lin <- readRDS("/data4/marcos/WC_Mouse.2020/exp.lin.ready2velo.rds")
+pseudotime <- read_csv("pseudotime.csv")
+pseudotime<- as.data.frame(pseudotime)
+rownames(pseudotime) <- pseudotime$X1
+pseudotime$X1 <- NULL
+exp.lin@meta.data <- merge(exp.lin@meta.data, pseudotime[26:42], by = 0)
+rownames(exp.lin@meta.data) <- exp.lin@meta.data$Row.names
+exp.lin@meta.data$Row.names <- NULL
+saveRDS(exp.lin, file = "exp.lin.ready2velo_pseudotime.rds")
+
+FeaturePlot(exp.lin, "velocity_pseudotime") + scale_color_viridis(option = "B") +  xlim(-6, 7) + ylim(-15, 8) + coord_fixed() + NoAxes()
+ggsave(filename = "pseudotime.plot.png", scale =2)
+
+ggplot(exp.lin@meta.data, aes(velocity_pseudotime, dorsal.auc.norm)) + geom_point(size= 0.5, alpha = 0.05) + geom_smooth(alpha = .5, col = "#31a354") + theme_minimal()
+ggplot(exp.lin@meta.data, aes(velocity_pseudotime, ventral.auc.norm)) + geom_point(size= 0.5, alpha = 0.05) + geom_smooth(alpha = .5, col = "#756bb1") + theme_minimal()
+
+exp.lin <- subset(exp.lin, idents = c("14", "5", "22", "13", "12", "10", "16", "17", "8", "15", "1", "6", "4", "0"))
+exp.lin <- SCTransform(exp.lin, variable.features.n = 50000, vars.to.regress = "percent.mt")
+
+scaled.exp <- t(exp.lin@assays[["SCT"]]@scale.data)
+genes.pseudotime <- merge(scaled.exp, exp.lin@meta.data, by = 0)
+
+ggplot(genes.pseudotime, aes(velocity_pseudotime, Gfap)) + geom_point(size= 0.5, alpha = 0.05) + geom_smooth(alpha = .5, col = "#31a354") + theme_minimal()
+ggplot(genes.pseudotime, aes(velocity_pseudotime, Dcx)) + geom_point(size= 0.5, alpha = 0.05) + geom_smooth(alpha = .5, col = "#31a354") + theme_minimal()
+ggplot(genes.pseudotime, aes(velocity_pseudotime, Egfr)) + geom_point(size= 0.5, alpha = 0.05) + geom_smooth(alpha = .5, col = "#31a354") + theme_minimal()
+ggplot(genes.pseudotime, aes(velocity_pseudotime, Pax6)) + geom_point(size= 0.5, alpha = 0.05) + geom_smooth(alpha = .5, col = "#31a354") + theme_minimal()
+ggplot(genes.pseudotime, aes(velocity_pseudotime, Rlbp1)) + geom_point(size= 0.5, alpha = 0.05) + geom_smooth(alpha = .5, col = "#31a354") + theme_minimal()
+ggplot(genes.pseudotime, aes(velocity_pseudotime, Crym)) + geom_point(size= 0.5, alpha = 0.05) + geom_smooth(alpha = .5, col = "#31a354") + theme_minimal()
+
+lineage.auc.pseudotime <- ggplot(exp.lin@meta.data, aes(x = velocity_pseudotime)) + 
+                          geom_smooth(aes(y = ventral.auc.norm), alpha = 0, col = "#756bb1") +
+                          geom_smooth(aes(y = dorsal.auc.norm), alpha = 0, col = "#31a354") +
+                          ylim(0,1) + 
+                          labs(x = "Pseudotime", y = "AUCell Score") + 
+                          scale_x_continuous(breaks = c(0, 0.5, 1)) +
+                      theme_minimal() + 
+                      theme(panel.grid.minor = element_blank(), panel.grid.major.x = element_blank())
+
+
+genes.pseudotime.plot <- ggplot(genes.pseudotime, aes(velocity_pseudotime)) + 
+                      geom_smooth(aes(y=Gfap), alpha = 0, col = "#4E94D0") + 
+                      geom_smooth(aes(y=Egfr), alpha = 0, col = "#43CF81") +
+                      geom_smooth(aes(y=Dcx), alpha = 0, col = "#E96060") +
+                      ylim(-3, 30) +
+                      labs(x = "Pseudotime", y = "Scaled gene expression") + 
+                      scale_x_continuous(breaks = c(0, 0.5, 1)) +
+                      theme_minimal() + 
+                      theme(panel.grid.minor = element_blank(), panel.grid.major.x = element_blank())
+
+dorsal.genes.pseudotime.plot <- ggplot(genes.pseudotime, aes(velocity_pseudotime)) + 
+                      geom_smooth(aes(y=Rlbp1), alpha = 0, col = "#4E94D0") + 
+                      geom_smooth(aes(y=Pax6), alpha = 0, col = "#43CF81") +
+                      geom_smooth(aes(y=Dcc), alpha = 0, col = "#E96060") +
+                      geom_smooth(aes(y=Gm29260), alpha = 0, col = "black") +
+                      ylim(-3, 20) +
+                      labs(x = "Pseudotime", y = "Scaled gene expression") + 
+                      theme_minimal() + 
+                      theme(panel.grid.minor = element_blank())
+  
+
+
+
+genes.pseudotime.plot + lineage.auc.pseudotime
+ggsave(filename = "pseudtoime.plots.png", width = 2, height = 1, scale =2 )
+
+
+  
+```
+#oRG signature
+##FeaturePlots
+```{r}
+#org.go <- unique(read_csv("oRG_Genes.csv", col_names = FALSE)$X1)
+org.go <- c("Moxd1", "Hopx", "Dio2", "Tnc", "Ptprz1")
+
+p1 <- FeaturePlot(exp.lin, features = org.go, combine = F, order = T)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+simple <- NoAxes() + NoLegend() 
+Plot1 <- lapply(p1, function (x) x + coord_fixed() + fix.sc + xlim(-6, 7) + ylim(-15, 8) + simple)
+
+wrap_plots(Plot1, nrow = 1) + plot_annotation(
+  title = "oRG Genes",
+  subtitle = "oRG genes identified in Pollen et al. 2016",
+  caption = paste0("Generated on ", format(Sys.time(), "%D"), ". Code available on ", "spatial.id_lineage.Rmd"))
+ggsave("org.genes.png", height = 3, width = 6, scale = 2)
+```
+
+
+```{r}
+levels(x = exp.lin) <- c("0", "1", "4", "14", "13", "5", "6", "8", "10", "12", "15", "16", "17", "22")
+DimPlot(exp.lin) + coord_fixed()
+```
+
+```{r}
+VlnPlot(exp.lin, org.go, idents = c(14, 5, 22),stack = T, flip= T)
+
+DotPlot(exp.lin, features = org.go, idents = c(14, 5, 22), dot.scale = 10) + coord_flip()
+ggsave(filename = "org.dotplot.png", width = 2.5, height =2, scale = 2)
+```
+
+
+##AUCell Scoring
+```{r}
+org.cells <- GeneSet(org.go, setName= "org.auc")
+
+CellTypes <- GeneSetCollection(org.cells)
+
+## loading in the expression matrix from seurat (replace 'experiment' with whatever seurat object you're using)
+exprMatrix <- as.matrix(GetAssayData(exp.lin, slot = "data"))
+
+## check how many genes from each signature appear in the dataset
+CellTypes <- subsetGeneSets(CellTypes, rownames(exprMatrix)) 
+cbind(nGenes(CellTypes))
+
+## calculating the ranking of genes for each cell in the dataset
+cells_rankings <- AUCell_buildRankings(exprMatrix, nCores=6, plotStats=TRUE)
+cells_rankings
+
+## calculate the area under the curve (AUC) to see if the gene set is enriched at the top of the gene ranking per cell
+cells_AUC <- AUCell_calcAUC(geneSets = CellTypes, cells_rankings)
+cells_AUC
+
+## see distribution of enrichment in all your cells and see where a cutoff is drawn
+set.seed(123)
+par(mfrow=c(2,2)) 
+cells_assignment <- AUCell_exploreThresholds(cells_AUC, plotHist=TRUE, assign=TRUE) 
+
+## extract the scores
+AUCScores <- getAUC(cells_AUC)
+AUCScores <- data.frame(t(AUCScores))
+
+## add to the object (replacing 'experiment' with your corresponding seurat object)
+exp.lin <- AddMetaData(exp.lin, AUCScores)
+
+## plot, then save the plot (note that "Ependymal_Cells" is the column name in the metadata, and comes from the name you give the gene set back in step 1)
+
+purples <- brewer_pal(9, "Purples")
+greens <- brewer_pal(9, "Greens")
+
+FeaturePlot(exp.lin, "org.auc", cols = viridis(100), order = T) +
+            coord_fixed() + 
+            xlim(-6, 7) + 
+            ylim(-15, 8) + 
+            NoAxes() +
+            labs(title = "oRG gene signature score")
+
+ggsave(filename = "/data4/marcos/WC_Mouse.2020/org.auc.png", height = 3, width = 2, scale = 2)
+
+VlnPlot(exp.lin, "org.auc", idents = c(14, 5, 22), pt.size = 0.5) + geom_hline(yintercept = 0.25)
+ggsave(filename = "/data4/marcos/WC_Mouse.2020/org.auc.vln.png", height = 2, width = 3, scale = 2)
+```
+##B2 Cells?
+```{r}
+bcells <- WhichCells(exp.lin, idents = c(14, 5, 22))
+b2.cells <- WhichCells(exp.lin, expression = org.auc > 0.25)
+
+exp.lin@meta.data[bcells, "btype"] <- "b1"
+exp.lin@meta.data[b2.cells, "btype"] <- "b2"
+
+DimPlot(exp.lin, cells = bcells, group.by = "btype", shuffle = T)
+DimPlot(exp.lin)
+
+wedge <- subset(exp.lin, idents = c("5", "22"))
+btype.markers<- FindMarkers(wedge, ident.1 = "b1", ident.2 = "b2", group.by = "btype")
+```
+
+
+
+
+
+

@@ -1,0 +1,523 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+#Install dependencies and setup
+```{r setup}
+library(AUCell)
+library(GSEABase)
+library(Seurat)
+library(shiny)
+library(viridis)
+library(scales)
+library(scico)
+library(ggplot2)
+library(patchwork)
+library(sctransform)
+library(tidyr)
+knitr::opts_knit$set(root.dir = "/data4/marcos/WC - Mouse 2020")
+
+```
+
+#Loading data
+```{r}
+#We will use the one with only the neurogenic lineage
+exp.lin <- readRDS("/data4/marcos/WC_Mouse.2020/exp.lin.rds")
+DimPlot(exp.lin) + coord_fixed()
+FeaturePlot(exp.lin, features = "Mt1") + coord_fixed()
+simple <- NoAxes() + NoLegend()
+```
+
+#AUCell using DE genes with a log.fc > 0.25 threshold
+```{r}
+#### Here's an example of using AUCell to plot a set of E cell markers. the object called "ECells" is a character vector of gene names.
+
+## preparing the gene sets: making the collection
+
+#ECells <- ?GeneSet(ECells, setName="Ependymal_Cells")
+## if there's another set of genes you want to test, you can add it here (e.g., BCells <- GeneSet(object, setName="B_Cells")
+## if you did make multiple gene sets, instead of the following line of code, you can run something like CellTypes <- GeneSetCollection(ECells, BCells)
+#CellTypes <- GeneSetCollection(ECells)
+
+#Note: lineage markers come from spatial id analysis.Rmd
+v.cells <- GeneSet(v.lineage.markers, setName= "ventral.auc")
+d.cells <- GeneSet(d.lineage.markers, setName= "dorsal.auc")
+CellTypes <- GeneSetCollection(v.cells, d.cells)
+
+## loading in the expression matrix from seurat (replace 'experiment' with whatever seurat object you're using)
+exprMatrix <- as.matrix(GetAssayData(exp.lin, slot = "data"))
+
+## check how many genes from each signature appear in the dataset
+CellTypes <- subsetGeneSets(CellTypes, rownames(exprMatrix)) 
+cbind(nGenes(CellTypes))
+
+## calculating the ranking of genes for each cell in the dataset
+cells_rankings <- AUCell_buildRankings(exprMatrix, nCores=6, plotStats=TRUE)
+cells_rankings
+
+## calculate the area under the curve (AUC) to see if the gene set is enriched at the top of the gene ranking per cell
+cells_AUC <- AUCell_calcAUC(CellTypes, cells_rankings)
+cells_AUC
+
+## see distribution of enrichment in all your cells and see where a cutoff is drawn
+set.seed(123)
+par(mfrow=c(2,2)) 
+cells_assignment <- AUCell_exploreThresholds(cells_AUC, plotHist=TRUE, assign=TRUE) 
+
+## extract the scores
+AUCScores <- getAUC(cells_AUC)
+AUCScores <- data.frame(t(AUCScores))
+
+## add to the object (replacing 'experiment' with your corresponding seurat object)
+exp.lin <- AddMetaData(exp.lin, AUCScores)
+
+## plot, then save the plot (note that "Ependymal_Cells" is the column name in the metadata, and comes from the name you give the gene set back in step 1)
+
+purples <- brewer_pal(9, "Purples")
+greens <- brewer_pal(9, "Greens")
+
+auc.ventral <- FeaturePlot(exp.lin, "ventral.auc", pt.size = 0.3, cols = purples(9), order = T) +
+                coord_fixed() +
+                xlim(-6, 7) +
+                ylim(-15, 8) +
+                NoAxes() +
+                NoLegend()
+
+auc.dorsal <- FeaturePlot(exp.lin, "dorsal.auc", pt.size = 0.3, cols = greens(9), order = T) +
+                coord_fixed() +
+                xlim(-6, 7) +
+                ylim(-15, 8) +
+                NoAxes() +
+                NoLegend()
+
+auc.cells <- auc.ventral + auc.dorsal
+
+auc.cells + plot_layout(ncol = 2)
+ggsave("AUClineagescores.strict.png", scale = 2)
+```
+
+##Creating a Ventral-Dorsal Index
+```{r}
+##Rescale scores so ventral and dorsal have the same range (0-1)
+ventral.auc.norm <- rescale(exp.lin@meta.data[, "ventral.auc"], to = c(0, 1))
+summary(ventral.auc.norm)
+
+dorsal.auc.norm <- rescale(exp.lin@meta.data[, "dorsal.auc"], to = c(0, 1))
+summary(dorsal.auc.norm)
+
+exp.lin@meta.data[, "ventral.auc.norm"] <- ventral.auc.norm
+exp.lin@meta.data[, "dorsal.auc.norm"] <- dorsal.auc.norm
+
+ventrodorsal.index <- ventral.auc.norm - dorsal.auc.norm 
+summary(ventrodorsal.index)
+
+#Adding the index to the exp.lin object
+exp.lin@meta.data[, "ventrodorsal.index"] <- ventrodorsal.index
+
+#In order to properly visualize it, let's build a discrete diverging color scale
+colsc <- brewer_pal(11, "PRGn", direction = -1)
+
+FeaturePlot(exp.lin, "ventrodorsal.index", cols = colsc(11), order = F, pt.size = 0.4) + 
+   coord_fixed() +
+   xlim(-6, 7) +
+   ylim(-15, 8) +
+   NoAxes()
+
+ggsave("ventrodorsal.index.png", scale = 2)
+
+VlnPlot(obj = exp.lin, features = "ventrodorsal.index", pt.size = 0)
+RidgePlot(exp.lin, features = "ventrodorsal.index")
+```
+
+
+##Labeling Dorsal and Ventral Cells
+```{r}
+quantiles <- c(0.1, 0.2, 0.25, 0.5, 0.75, 0.8, 0.9)
+exp.lin@meta.data %>% filter(ventrodorsal.index >0) %>% summarise(ventrodorsal.index = quantile(ventrodorsal.index, quantiles), q = quantiles)
+exp.lin@meta.data %>% filter(ventrodorsal.index <0) %>% summarise(ventrodorsal.index = quantile(ventrodorsal.index, quantiles), q = quantiles)
+
+#Labeling the top 25% cells ventral and dorsal cells (according to the ventrodorsal.index) as dorsal/ventral
+ventral.cells <- rownames(exp.lin@meta.data %>% filter(ventrodorsal.index > 0.27362947))
+dorsal.cells <- rownames(exp.lin@meta.data %>% filter(ventrodorsal.index < -0.3428319))
+
+exp.lin@meta.data[, "lineage"] <- NA
+exp.lin@meta.data[ventral.cells, "lineage"] <- "ventral"
+exp.lin@meta.data[dorsal.cells, "lineage"] <- "dorsal"
+
+
+Idents(exp.lin) <- "lineage"
+lineage.dim <- DimPlot(exp.lin, cells= WhichCells(exp.lin, idents = c("dorsal", "ventral")), pt.size = 0.4,  shuffle = T, cols = c("#31a354", "#756bb1"), na.value = "grey75") + coord_fixed() + NoAxes() + xlim(-6, 7) + ylim(-15, 7)
+
+Idents(exp.lin) <- "integrated_snn_res.1.5"
+lineages.split <- DimPlot(exp.lin, split.by = "lineage", pt.size = 0.01) + coord_fixed() + simple + xlim(-6, 7) + ylim(-15, 7)
+
+ventral.auc.vln <- VlnPlot(exp.lin, "ventral.auc.norm", group.by = "lineage", pt.size = 0, cols = c("#31a354", "#756bb1")) +
+  labs(title = NULL, subtitle = "Ventral AUCell score") + 
+  theme(plot.subtitle = element_text(hjust = 0.5), axis.title = element_blank()) +
+  NoLegend()
+
+dorsal.auc.vln <- VlnPlot(exp.lin, "dorsal.auc.norm", group.by = "lineage", pt.size = 0, c("#31a354", "#756bb1")) +
+  labs(title = NULL, subtitle = "Dorsal AUCell score") + 
+  theme(plot.subtitle = element_text(hjust = 0.5), axis.title = element_blank()) +
+  NoLegend()
+
+auc.violins <- ventral.auc.vln + dorsal.auc.vln + plot_annotation(title = "AUC Scores", theme = theme(plot.title = element_text(hjust = 0.5))) + plot_layout(ncol = 2)
+
+dv.index.violin <- VlnPlot(exp.lin, "ventrodorsal.index", pt.size = 0)
+
+lineage.dim + (lineages.split/auc.violins)
+ggsave("auc.labeling.png", scale =2, width = 5, height = 3)
+
+lineage.dim
+ggsave("lineage.dim.png", scale =2, width = 2, height = 2)
+```
+
+##Saving
+```{r}
+saveRDS(exp.lin, file = "exp.lin.ready2velo.rds")
+```
+
+```{r}
+Idents(exp.lin) <- "lineage"
+exp.lin.dorsal <- subset(exp.lin, ident = "dorsal")
+exp.lin.ventral <- subset(exp.lin, ident = "ventral")
+
+saveRDS(exp.lin.dorsal, file = "exp.lin.dorsal.ready2velo.rds")
+saveRDS(exp.lin.ventral, file = "exp.lin.ventral.ready2velo.rds")
+
+DimPlot(exp.lin.ventral)
+```
+#GO Analysis between dorsal and ventral lineages
+```{r}
+Idents(exp.lin) <- "Lineage"
+lin.markers <- FindMarkers(exp.lin, ident.1 = "dorsal", ident.2= "ventral", logfc.threshold = 0.1 )
+saveRDS(lin.markers, file = "lin.markers.rds")
+
+lin.markers.0.1.dorsal <- rownames(lin.markers %>% filter(avg_logFC > 0.1) %>% slice_max(n = 75, order_by = avg_logFC, with_ties = F))
+lin.markers.0.1.ventral <- rownames(lin.markers %>% filter(avg_logFC < -0.1) %>% slice_max(n = 75, order_by = avg_logFC, with_ties = F))
+
+lin.markers.0.25.dorsal <- rownames(lin.markers %>% filter(avg_logFC > 0.25) %>% slice_max(n = 75, order_by = avg_logFC, with_ties = F))
+lin.markers.0.25.ventral <- rownames(lin.markers %>% filter(avg_logFC < -0.25) %>% slice_max(n = 75, order_by = avg_logFC, with_ties = F))
+
+write.table(lin.markers.0.1.dorsal, quote = F, row.names = F, col.names = F, "dorsal.lin.0.1.txt", sep=",")
+write.table(lin.markers.0.1.ventral, quote = F, row.names = F, col.names = F, "ventral.lin.0.1.txt", sep=",")
+write.table(lin.markers.0.25.dorsal, quote = F, row.names = F, col.names = F, "dorsal.lin.0.25.txt", sep=",")
+write.table(lin.markers.0.25.ventral, quote = F, row.names = F, col.names = F, "ventral.lin.0.25.txt", sep=",")
+```
+
+##Heatmap
+```{r}
+exp.lin.heatmap <- SCTransform(exp.lin, new.assay.name = "SCT2", variable.features.n = 50681, vars.to.regress = "percent.mt")
+
+lin.markers["gene"] <- rownames(lin.markers)
+
+lin.markers.dorsal <- lin.markers %>% filter(avg_logFC > 0) %>%  top_n(10) %>% pull(gene)
+lin.markers.ventral <- lin.markers  %>% filter(avg_logFC < 0) %>%  top_n(10) %>% pull(gene)
+
+heatmap <- DoHeatmap(subset(exp.lin.heatmap, downsample = 200), features = rev(c(lin.markers.dorsal, lin.markers.ventral)), assay =  SCT2, size = 3)
+
+ggsave("acells.heatmap.0.2threshold.png", scale =2, width = 4, height = 3)
+```
+
+##Dotplot
+```{r}
+#importing the data exported from panther. I exported each condition (dorsal and ventral lineages here) as a different .txt file and I will load each file as a distinct table on R 
+dorsal.go <- read_delim("dorsal.go.txt", 
+    "\t", escape_double = FALSE, col_names = c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr"), 
+    trim_ws = TRUE, skip = 12)
+
+ventral.go <- read_delim("ventral.go.txt", 
+    "\t", escape_double = FALSE, col_names = c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr"), 
+    trim_ws = TRUE, skip = 12)
+
+#Merging all tables into a single mega table with all the data. Instead of creating a column called "lineage" on line 238, you can name it to whatever you are comparing (Could be "identity" as you will be comparing NSC and parenchymal astrocytes)
+go.cat.n <- nrow(dorsal.go)
+go.data <- do.call("rbind", list(dorsal.go, ventral.go))
+go.data %>% mutate(fold.enrich = go.data$obs/go.data$expected)
+go.data[1:go.cat.n,"lineage"] <- "Dorsal"
+go.data[(1+go.cat.n):(2*go.cat.n),"lineage"] <- "Ventral"
+
+#There are many ways of determining which categories to display. Here I will first filter out categories with very little or too many genes, that's what the "filter(ref >5 & ref <50"does. I am also filtering for categories with a raw p value < 0.01 and adjusted p value of <0.05. And then I pick the top 10 of each lineage.
+go.cats <- rev(unique(go.data %>% filter(ref >5 & ref <50 & raw.p.value < 0.01 & fdr <0.05) %>% group_by(lineage) %>% slice_max(n = 10, order_by = fold.enrich, with_ties = F) %>% pull(go)))
+
+
+#You may still find several redundant or somewhat irrelevant categories. I used the list of categories generated on line 242 as a starting point and ended up making my own set of categories manually: 
+go.cats <- c(
+  "negative chemotaxis (GO:0050919)",                                            
+ "synaptic transmission, glutamatergic (GO:0035249)",                                   
+ "motor neuron axon guidance (GO:0008045)",                                          
+ "retinal ganglion cell axon guidance (GO:0031290)",                                     
+ "cellular response to fluid shear stress (GO:0071498)",                                
+ "G protein-coupled glutamate receptor signaling pathway (GO:0007216)",                  
+ "tangential migration from the subventricular zone to the olfactory bulb (GO:0022028)", 
+"olfactory bulb interneuron differentiation (GO:0021889)",                              
+"glial cell fate commitment (GO:0021781)",                                              
+"regulation of exit from mitosis (GO:0007096)",                                       
+"positive regulation of attachment of spindle microtubules to kinetochore (GO:0051987)",
+"positive regulation of exit from mitosis (GO:0031536)",                             
+"cerebral cortex regionalization (GO:0021796)",                                         
+"detoxification of copper ion (GO:0010273)")
+
+#Now you will create another table with the information you want to plot, in the order you want them to appear in the plot:
+order <- c("Dorsal", "Ventral") #order of the groups you are comparing
+
+df.all<- go.data %>% filter(go %in% go.cats)
+df.all$fold.enrich <- as.numeric(df.all$fold.enrich)
+df.all <- df.all %>% mutate(fold.enrich = replace_na(fold.enrich, 0))
+df.all$fold.enrich <- as.numeric(df.all$fold.enrich)
+df.all <- df.all %>% mutate(sig = ifelse(fdr < 0.05, T, F))
+df.all$lineage <- factor(df.all$lineage, levels = order)
+df.all$go <- factor(df.all$go, levels = go.cats)
+
+#Making the plot
+ggplot(df.all, aes(lineage, go)) + 
+  geom_point(aes(col = sig, size = fold.enrich)) + 
+  scale_color_manual(name = NULL, labels = c("FDR p > 0.05", "FDR p < 0.05"), values = viridis(2, direction = -1)) + 
+  scale_size(name = "Fold enrichment") +
+  #scale_x_discrete(labels=c("Cluster 1" = "1", "Cluster 0" = "0", "Cluster 4" = "4", "Cluster 6" = "6", "Cluster 15" = "15")) +
+  theme_minimal() + 
+  theme(panel.grid.major = element_blank(), axis.title = element_blank(), legend.position = "bottom", legend.direction = "horizontal")
+
+#Exporting as a high-resolution png
+ggsave(filename = "lineage.go.dotplot.png", width = 3.4, height = 2.1, scale =2)
+
+
+
+
+#Pathways
+ventral_paths <- read_delim("/data4/marcos/WC_Mouse.2020/ventral.paths.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 11)
+colnames(ventral_paths) <- c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr")
+ventral_paths["lineage"] <- "Ventral"
+ventral_paths<- ventral_paths[1:5,]
+
+
+dorsal_paths <- read_delim("/data4/marcos/WC_Mouse.2020/dorsal.paths.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 11)
+colnames(dorsal_paths) <- c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr")
+
+dorsal_paths <- dorsal_paths %>% filter(go %in% ventral_paths$go)
+dorsal_paths["lineage"] <- "Dorsal"
+dorsal_paths$fold.enrich <- as.numeric(dorsal_paths$fold.enrich)
+dorsal_paths <- dorsal_paths %>% mutate(fold.enrich = replace_na(fold.enrich, 0))
+dorsal_paths$fold.enrich <- as.numeric(dorsal_paths$fold.enrich)
+
+paths <- rbind(ventral_paths, dorsal_paths, deparse.level = 0)
+paths <- paths %>% mutate(sig = ifelse(fdr < 0.05, T, F))
+df.all <- rbind(df.all, paths, deparse.level = 0)
+
+ggplot(paths, aes(lineage, go)) + 
+  geom_point(aes(col = sig, size = fold.enrich)) + 
+  scale_color_manual(name = NULL, labels = c("FDR p > 0.05", "FDR p < 0.05"), values = viridis(2, direction = -1)) + 
+  scale_size(name = "Fold enrichment") +
+  #scale_x_discrete(labels=c("Cluster 1" = "1", "Cluster 0" = "0", "Cluster 4" = "4", "Cluster 6" = "6", "Cluster 15" = "15")) +
+  theme_minimal() + 
+  theme(panel.grid.major = element_blank(), axis.title = element_blank(), legend.position = "bottom", legend.direction = "horizontal")
+
+ggsave(filename = "lineage.paths.dotplot.png", width = 2, height = 1.5, scale =2)
+```
+
+
+
+#Subsetting Dorsal and ventral lineages
+```{r}
+Idents(exp.lin) <- "lineage"
+exp.dorsal <- subset(exp.lin, idents = "dorsal")
+exp.ventral <- subset(exp.lin, idents = "ventral")
+
+DimPlot(exp.dorsal) + coord_fixed()
+FeaturePlot(exp.dorsal, features = "Dio2")+ coord_fixed() 
+FeaturePlot(exp.dorsal, features = "Dcx")+ coord_fixed() 
+
+
+DimPlot(exp.ventral) + coord_fixed() 
+FeaturePlot(exp.ventral, features = "Crym") + coord_fixed() 
+FeaturePlot(exp.ventral, features = "Dcx") + coord_fixed()
+```
+
+```{r}
+future::plan("sequential", workers = 24)
+
+#dorsal
+exp.dorsal <- Seurat::SCTransform(exp.dorsal, verbose = T)
+exp.dorsal <- RunPCA(exp.dorsal, npcs=100, verbose = T)
+ElbowPlot( exp.dorsal, ndims = 100)
+exp.dorsal <- RunUMAP(exp.dorsal, reduction = "pca", dims = 1:100, verbose = T)
+exp.dorsal <- FindNeighbors(exp.dorsal, dims = 1:100, verbose = T)
+exp.dorsal <- FindClusters(exp.dorsal, resolution = c(0.8, seq(0.5, 2, 0.5)), verbose = T)
+saveRDS(exp.dorsal, file = "exp.dorsal.rds")
+
+Idents(exp.dorsal) <- "SCT_snn_res.1"
+DimPlot(exp.dorsal)
+FeaturePlot(exp.dorsal, features = "Dcx") + coord_fixed() + NoAxes()
+
+#Ventral
+exp.ventral <- Seurat::SCTransform(exp.ventral, verbose = T)
+exp.ventral <- RunPCA(exp.ventral, npcs=100, verbose = T)
+ElbowPlot( exp.ventral, ndims = 100)
+exp.ventral <- RunUMAP(exp.ventral, reduction = "pca", dims = 1:100, verbose = T)
+exp.ventral <- FindNeighbors(exp.ventral, dims = 1:100, verbose = T)
+exp.ventral <- FindClusters(exp.ventral, resolution = c(0.8, seq(0.5, 2, 0.5)), verbose = T)
+saveRDS(exp.ventral, file = "exp.ventral.rds")
+
+
+Idents(exp.ventral) <- "SCT_snn_res.1"
+DimPlot(exp.ventral)
+FeaturePlot(exp.ventral, features = "Mt1") + coord_fixed() + NoAxes()
+
+exp.v.allmarkers <- FindAllMarkers(exp.ventral, logfc.threshold = 0.1, only.pos = T)
+exp.d.allmarkers <- FindAllMarkers(exp.dorsal, only.pos = T)
+
+```
+
+
+
+
+```{r}
+Idents(exp.lin) <- "lineage"
+dv.markers <- FindAllMarkers(exp.lin, only.pos = T, logfc.threshold = 0.15)
+
+dorsal.lin.genes <- dv.markers %>% filter(cluster == "dorsal") %>% pull(gene)
+  write.table(dorsal.lin.genes, quote = F, row.names = F, col.names = F, "dorsal.lin.genes.txt", sep=",")
+
+ventral.lin.genes <- dv.markers %>% filter(cluster == "ventral") %>% pull(gene)
+  write.table(ventral.lin.genes, quote = F, row.names = F, col.names = F, "ventral.lin.genes.txt", sep=",")
+```
+
+#GO for DE genes in dorsal/ventral lineages
+```{r}
+lineage_go <- read_delim("/data4/marcos/WC_Mouse.2020/analysis (1).txt", 
+    "\t", escape_double = FALSE, trim_ws = TRUE, 
+    skip = 11)
+
+colnames(lineage_go[8])
+
+lineage_go %>% filter(`dorsal.lin.genes.txt (FDR)` < 0.05) %>% arrange(`dorsal.lin.genes.txt (fold Enrichment)`) %>% slice
+```
+
+
+#AUCell Scoring for GO categories:
+```{r}
+#GO cat: mitotic DNA replication (GO:1902969)
+mito.go <- c("Mcm4", "Mcm2", "F6rzm2", "Cdc45", "Sld2", "F6rkm9")
+#Spontaneous synaptic transmission
+spontaneous_synapse.go <- unique(read_csv("A.cells/GO/spontaneous synaptic transmission (GO_0098814) - Sheet1.csv", col_names = FALSE)$X1)
+#Neuron migration (GO:0001764)
+neuron_migration.go <- unique(read_csv("A.cells/GO/neuron migration (GO_0001764) - Sheet1.csv", col_names = FALSE)$X1)
+#Axonal guidance (GO:0007411)
+axonal_guidance.go <- unique(read_csv("A.cells/GO/axon guidance (GO_0007411) - Sheet1.csv", col_names = FALSE)$X1)
+#Dorsoventral axonal guidance (GO_0033563)
+dorsoventral_guidance.go <- unique(read_csv("A.cells/GO/dorsoventral axonal guidance (GO_0033563) - Sheet1.csv", col_names = FALSE)$X1)
+#cerebral cortex regionalization (GO_0021796)
+cortex_region.go <- unique(read_csv("A.cells/GO/cerebral cortex regionalization (GO_0021796) - Sheet1.csv", col_names = FALSE)$X1)
+#postsynaptic membrane organization (GO_0001941)
+postsynaptic.go <- unique(read_csv("A.cells/GO/postsynaptic membrane organization (GO_0001941) - Sheet1.csv", col_names = FALSE)$X1)
+#Mitosis DNA raplication initiation (GO:1902975)
+mitosis_dna_rep_init.go <- unique(read_csv("A.cells/GO/Mitosis DNA  replication initiation (GO_1902975) - Sheet1.csv", col_names = FALSE)$X1)
+
+#Note: lineage markers come from spatial id analysis.Rmd
+mito.go.cells <- GeneSet(mito.go, setName= "mito.auc")
+mito.init.go.cells <- GeneSet(mitosis_dna_rep_init.go, setName= "mito.init.auc")
+synapse.go.cells <- GeneSet(spontaneous_synapse.go, setName= "synapse.auc")
+neuro.mig.cells <- GeneSet(neuron_migration.go, setName= "neuro.mig.auc")
+axon.guide.cells <- GeneSet(axonal_guidance.go, setName= "axon.guide.auc")
+
+dorsoventral.go.cells <- GeneSet(dorsoventral_guidance.go, setName= "dorsoventral.auc")
+cortex.reg.cells <- GeneSet(cortex_region.go, setName= "cortex.reg.auc")
+postsynaptic.cells <- GeneSet(postsynaptic.go, setName= "postsynaptic.auc")
+
+CellTypes <- GeneSetCollection(mito.go.cells, mito.init.go.cells, synapse.go.cells, neuro.mig.cells, axon.guide.cells, dorsoventral.go.cells, cortex.reg.cells, postsynaptic.cells)
+
+## loading in the expression matrix from seurat (replace 'experiment' with whatever seurat object you're using)
+exprMatrix <- as.matrix(GetAssayData(exp.a, slot = "data"))
+
+## check how many genes from each signature appear in the dataset
+CellTypes <- subsetGeneSets(CellTypes, rownames(exprMatrix)) 
+cbind(nGenes(CellTypes))
+
+## calculating the ranking of genes for each cell in the dataset
+cells_rankings <- AUCell_buildRankings(exprMatrix, nCores=6, plotStats=TRUE)
+cells_rankings
+
+## calculate the area under the curve (AUC) to see if the gene set is enriched at the top of the gene ranking per cell
+cells_AUC <- AUCell_calcAUC(CellTypes, cells_rankings)
+cells_AUC
+
+## see distribution of enrichment in all your cells and see where a cutoff is drawn
+set.seed(123)
+par(mfrow=c(2,2)) 
+cells_assignment <- AUCell_exploreThresholds(cells_AUC, plotHist=TRUE, assign=TRUE) 
+
+## extract the scores
+AUCScores <- getAUC(cells_AUC)
+AUCScores <- data.frame(t(AUCScores))
+
+## add to the object (replacing 'experiment' with your corresponding seurat object)
+exp.a <- AddMetaData(exp.a, AUCScores)
+
+## plot, then save the plot (note that "Ependymal_Cells" is the column name in the metadata, and comes from the name you give the gene set back in step 1)
+
+purples <- brewer_pal(9, "Purples")
+greens <- brewer_pal(9, "Greens")
+
+auc.mito <- FeaturePlot(exp.a, "mito.auc", pt.size = 0.7, cols = viridis(100), order = T) +
+            coord_fixed() +
+            xlim(-4.5, 3.5) + 
+            ylim(-14, -2) +
+            simple
+ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/mito.auc.png", height = 2, width = 2, scale = 2)
+
+auc.mito.init <- FeaturePlot(exp.a, "mito.init.auc", pt.size = 0.7, cols = viridis(100), order = T) +
+            coord_fixed() +
+            xlim(-4.5, 3.5) + 
+            ylim(-14, -2) +
+            simple
+ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/mito.init.auc.png", height = 2, width = 2, scale = 2)
+
+auc.synapse <- FeaturePlot(exp.a, "synapse.auc", pt.size = 0.7, cols = viridis(100), order = T) +
+                coord_fixed() +
+                xlim(-4.5, 3.5) + 
+                ylim(-14, -2) +
+                simple
+ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/synapse.auc.png", height = 2, width = 2, scale = 2)
+
+auc.neuron.migration <- FeaturePlot(exp.a, "neuro.mig.auc", pt.size = 0.7, cols = viridis(100), order = T) +
+                        coord_fixed() +
+                        xlim(-4.5, 3.5) + 
+                        ylim(-14, -2) +
+                        simple
+ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/neuronmigration.auc.png", height = 2, width = 2, scale = 2)
+
+auc.axon.guide <- FeaturePlot(exp.a, "axon.guide.auc", pt.size = 0.7, cols = viridis(100), order = T) +
+                  coord_fixed() +
+                  xlim(-4.5, 3.5) + 
+                  ylim(-14, -2) +
+                  simple
+ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/axonguidance.auc.png", height = 2, width = 2, scale = 2)
+
+auc.dorsoventral <- FeaturePlot(exp.a, "dorsoventral.auc", pt.size = 0.7, cols = viridis(100), order = T) +
+                coord_fixed() +
+                xlim(-4.5, 3.5) + 
+                ylim(-14, -2) +
+                simple
+ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/dorsoventral.auc.png", height = 2, width = 2, scale = 2)
+
+auc.cortex.reg <- FeaturePlot(exp.a, "cortex.reg.auc", pt.size = 0.7, cols = viridis(100), order = T) +
+                  coord_fixed() +
+                  xlim(-4.5, 3.5) + 
+                  ylim(-14, -2) +
+                  simple
+ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/cortex.reg.auc.png", height = 2, width = 2, scale = 2)
+
+auc.postsynaptic.auc <- FeaturePlot(exp.a, "postsynaptic.auc", pt.size = 0.7, cols = viridis(100), order = T) +
+                        coord_fixed() +
+                        xlim(-4.5, 3.5) + 
+                        ylim(-14, -2) +
+                        NoAxes()
+ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/postsynaptic.auc.png", height = 2, width = 2, scale = 2)
+
+#ViolinPlots
+Idents(exp.a) <- "integrated_snn_res.1.5"
+aucscores <- c("mito.auc", "mito.init.auc", "neuro.mig.auc", "axon.guide.auc", "synapse.auc", "postsynaptic.auc", "dorsoventral.auc", "cortex.reg.auc")
+VlnPlot(exp.a, features = aucscores, stack = T, flip = T) + NoLegend()
+ggsave("AUClineagescores.strict.png", width = 2, height = 6, scale = 2)
+````
