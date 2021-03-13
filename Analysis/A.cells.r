@@ -1,16 +1,9 @@
 ---
 title: "Analyzing A cells"
-output: html_notebook
+
 ---
-```{r}
-BiocManager::install("enrichplot")
-BiocManager::install("clusterProfiler")
-```
-
-
-
 #setup
-```{r setup}
+
 library(knitr)
 library(future)
 library(ggplot2) 
@@ -36,34 +29,32 @@ library(tidyr)
 library(scico)
 install_github("taunometsalu/pheatmap")
 install_github("taunometsalu/clustvis/Rpackage", build_vignettes = TRUE)
-knitr::opts_knit$set(root.dir = "/data4/marcos/WC - Mouse 2020/A.cells")
-```
+
+
 
 #Loading the annotated Seurat Object
-```{r}
+
 exp <- readRDS("/data4/svz_10x/analysis/wc_2020/experiment.SCT+CCA_integrated_2020-06-08.rds")
 Idents(exp) <- "integrated_snn_res.1.5"
 DimPlot(exp, label = T) + coord_fixed() + NoLegend()
 
 exp.lin <- readRDS("/data4/marcos/WC_Mouse.2020/exp.lin.rds")
 DimPlot(exp.lin, label = T) + coord_fixed() + NoLegend()
-```
+
 ##Testing a single gene expression:
-```{r}
+
 FeaturePlot(exp, "Vax1", order = T) + scale_color_viridis(option = "A") + coord_fixed()
-```
+
 
 #Find All Markers
-```{r}
 plan("multiprocess", workers = 16)
 plan()
 all.markers.1.5 <- FindAllMarkers(exp)
 saveRDS(all.markers.1.5, file = "all.markers.1.5.rds")
 #A Cells clusters are: 6, 4, 1 and 0
-```
+
 
 ##Listing markers for each cluster
-```{r}
 cluster15.allmarkers <- all.markers.1.5 %>% filter(cluster==15 & avg_logFC >0) %>% pull(gene)
 cluster6.allmarkers <- all.markers.1.5 %>% filter(cluster==6 & avg_logFC >0) %>% pull(gene)
 cluster4.allmarkers <- all.markers.1.5 %>% filter(cluster==4 & avg_logFC >0) %>% pull(gene)
@@ -75,10 +66,9 @@ write.table(cluster6.allmarkers, quote = F, row.names = F, col.names = F, "clust
 write.table(cluster4.allmarkers, quote = F, row.names = F, col.names = F, "cluster4.allmarkers.txt", sep=",")
 write.table(cluster1.allmarkers, quote = F, row.names = F, col.names = F, "cluster1.allmarkers.txt", sep=",")
 write.table(cluster0.allmarkers, quote = F, row.names = F, col.names = F, "cluster0.allmarkers.txt", sep=",")
-```
+
 
 ##Plots using all markers 
-```{r}
 #cluster6
 p1 <- FeaturePlot(exp.lin, features = cluster6.allmarkers[1:9], combine = FALSE, pt.size = 0.2, order = T)
 fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
