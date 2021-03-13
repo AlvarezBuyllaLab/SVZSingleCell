@@ -1,10 +1,9 @@
 ---
 title: "Redmond et al 2021 - Demultiplexing"
-output: html_notebook
 ---
 
 #Setup
-```{r}
+
 library(AUCell)
 library(GSEABase)
 library(Seurat)
@@ -16,7 +15,7 @@ library(ggplot2)
 library(patchwork)
 library(sctransform)
 library(tidyr)
-```
+
 
 #Reading the Cellranger output and Creating a Seurat Object
 ```{r}
@@ -31,36 +30,15 @@ exp <- CreateSeuratObject(counts = svz_matrix$`Gene Expression`)
 exp[['Protein']] <- CreateAssayObject(counts = svz_matrix$`Antibody Capture`)
 
 exp
-```
 
-```{r}
 #Barcodes used: A3(TGAGACCT), A4(GCACACGC), A5(AGAGAGAG), A6 (TCACAGCA)
 seurat.cells <- names(experiment$orig.ident)
 cell.id.vec <- seurat.cells
 multi.ref <- c("TGAGACCT", "GCACACGC", "AGAGAGAG", "TCACAGCA")
-```
+
 
 
 #1. Demultiplexing
-##On terminal:
-```{bash}
-#Loading the original FastQ files was not possible due their huge size (R2 is 27gb, while the preprocessing is optimized for files under 2gb). We have to downsample our barcode fastqfiles to 100M reads:
-
-gunzip TGACCAAT_S5_L001_R2_001.fastq.gz
-gunzip TGACCAAT_S5_L001_R1_001.fastq.gz
-seqtk sample -s100 TGACCAAT_S5_L001_R2_001.fastq 100000000 > TGACCAAT_S5_L001_R2_001_subsampled.fastq
-seqtk sample -s100 TGACCAAT_S5_L001_R1_001.fastq 100000000 > TGACCAAT_S5_L001_R1_001_subsampled.fastq
-gzip TGACCAAT_S5_L001_R2_001_subsampled.fastq
-gzip TGACCAAT_S5_L001_R1_001_subsampled.fastq
-
-gunzip ACAGTGAT_S6_L001_R1_001.fastq.gz
-gunzip ACAGTGAT_S6_L001_R2_001.fastq.gz
-seqtk sample -s100 ACAGTGAT_S6_L001_R1_001.fastq 100000000 > ACAGTGAT_S6_L001_R1_001_subsampled.fastq
-seqtk sample -s100 ACAGTGAT_S6_L001_R2_001.fastq 100000000 > ACAGTGAT_S6_L001_R2_001_subsampled.fastq
-gzip ACAGTGAT_S6_L001_R2_001_subsampled.fastq
-gzip ACAGTGAT_S6_L001_R1_001_subsampled.fastq
-```
-
 
 ##Loading FastQ files
 ```{r}
