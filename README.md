@@ -16,9 +16,9 @@ https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE165555
 # Rmd File Descriptions
 
 ## Data Preprocessing
-scRNA-Seq dataset: Pre-processing/scRNA-Seq/
+scRNA-Seq dataset: [Pre-processing/scRNA-Seq/](https://github.com/AlvarezBuyllaLab/SVZSingleCell/tree/master/Pre-processing/scRNA-Seq)
 
-sNucRNA-Seq dataset: Pre-processing/sNucRNA-Seq/
+sNucRNA-Seq dataset: [Pre-processing/sNucRNA-Seq/](https://github.com/AlvarezBuyllaLab/SVZSingleCell/tree/master/Pre-processing/sNucRNA-Seq/sNucRNASeq_ObjectCreation)
 
 ## Dataset Analyses
 
