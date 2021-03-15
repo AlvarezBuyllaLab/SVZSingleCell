@@ -16,13 +16,15 @@ https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE165555
 # Rmd File Descriptions
 
 ## Data Preprocessing
-scRNA-Seq dataset:
+scRNA-Seq dataset: Pre-processing/scRNA-Seq/
 
-sNucRNA-Seq dataset: Preprocessing/sNucRNASeq_ObjectCreation/
+sNucRNA-Seq dataset: Pre-processing/sNucRNA-Seq/
 
 ## Dataset Analyses
 
 ### Figure 1 & Supplements
+
+Figure 1 & Supplement 2: [Analysis/BcellsVsAstrocytes.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/BcellsVsAstrocytes.Rmd)
 
 Supplement 3: [Analysis/sNucRNASeq_Fig1Supplement3.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/sNucRNASeq_Fig1Supplement3.Rmd)
 
@@ -33,7 +35,10 @@ Supplement 3: [Analysis/sNucRNASeq_Fig1Supplement3.Rmd](https://github.com/Alvar
 [Analysis/BCellsAnalysis_Fig3_Fig3Supplement1.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/BcellsClusterAnalysis_Fig3_Fig3Supplement1.Rmd)
 
 ### Figure 5 & Supplement
+[Analysis/A.cells.R](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/A.cells.r)
 
 [Analysis/Acell_NucleiLabelTransfer_Fig5.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/Acell_NucleiLabelTransfer_Fig5.Rmd)
 
 ### Figure 6 & Supplement
+
+[Analysis/AUCell.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/AUCell.Rmd)
