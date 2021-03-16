@@ -21,8 +21,8 @@ library(future)
 # Reading the Cellranger output and Creating a Seurat Object
 
 svz_matrix <- Read10X(
-  data.dir = c("/data4/svz_10x/wholecell/data/pipestance/g1/outs/filtered_feature_bc_matrix",
-               "/data4/svz_10x/wholecell/data/pipestance/g2/outs/filtered_feature_bc_matrix"),
+  data.dir = c("../../../Files/outs/g1",
+               "../../../Files/outs/g2"),
   unique.features = TRUE,
   strip.suffix = TRUE
 )
