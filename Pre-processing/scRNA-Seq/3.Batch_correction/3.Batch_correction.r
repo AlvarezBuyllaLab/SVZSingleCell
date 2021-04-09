@@ -2,8 +2,8 @@ exp <- readRDS("../2.Filtering_and_QC/exp.step2.rds")
 
 options(future.globals.maxSize = 5000 * 1024^2)
 
-LV.list <- SplitObject(exp, split.by = "well")
-reference.list <- LV.list[c("well_1", "well_2")]
+LV.list <- SplitObject(exp, split.by = "Lane")
+reference.list <- LV.list[c("Lane_1", "Lane_2")]
 head(reference.list)
 for (i in 1:length(x = LV.list)) {
     LV.list[[i]] <- SCTransform(object = LV.list[[i]], verbose = FALSE)
