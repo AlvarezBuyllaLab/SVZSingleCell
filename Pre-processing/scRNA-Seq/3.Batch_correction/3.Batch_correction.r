@@ -24,4 +24,4 @@ exp.int <-FindClusters(exp.int, resolution = c(0.8, seq(0.5, 2, 0.5)), verbose =
 
 Idents(exp.int) <- "integrated_snn_res.1.5"
 DefaultAssay(exp) <- "SCT"
-saveRDS(exp, file = "exp.step3.rds")
+saveRDS(exp.int, file = "exp.step3.rds")
