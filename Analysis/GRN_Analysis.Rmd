@@ -1,16 +1,3 @@
----
-title: "20210623_GRN_Code"
-author: "BM"
-date: "5/4/2021"
-output: html_document
----
-
----
-title: "05042021_SVZ10X_GRN"
-author: "BM"
-date: "5/4/2021"
-output: html_document
----
 
 ```{r setup, include=FALSE}
 library(BiocManager)
