@@ -1,0 +1,234 @@
+---
+title: "20210623_GRN_Code"
+author: "BM"
+date: "5/4/2021"
+output: html_document
+---
+
+---
+title: "05042021_SVZ10X_GRN"
+author: "BM"
+date: "5/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(BiocManager)
+library(GENIE3)
+library(Seurat)
+library(foreach)
+```
+
+Loading the data and running GENIE3
+```{r}
+
+##Subset out the ventral and dorsal B cell clusters
+
+scSeq <- readRDS("scSeq.rds")
+
+Ventral <- subset(scSeq, idents = 14) 
+Dorsal <- subset(scSeq,idents = c(5,22))
+
+
+##Get expression data from each set of clusters
+
+DorsalMatrix <- as.matrix(GetAssayData(Dorsal, slot = "data"))
+VentralMatrix <- as.matrix(GetAssayData(Ventral, slot = "data"))
+
+
+##Run GENIE3 to predict links between genes in each set of cells
+
+set.seed(123)
+DMat <- GENIE3(DorsalMatrix, verbose = T, nCores = 4)
+DLink <- getLinkList(DMat)
+
+set.seed(123)
+VMat <- GENIE3(VentralMatrix, verbose = T, nCores = 4)
+VLink <- getLinkList(VMat)
+
+
+##Export top links to see predicted networks in each population of B cells
+
+write.table(Dlink, "DorsalB_GRN.txt", sep = " ", row.names = F, quote = F)
+write.table(Vlink, "VentralB_GRN.txt", sep = " ", row.names = F, quote = F)
+
+```
+
+
+Building networks around differentially expressed genes between putative regional populations
+```{r}
+
+##Import table of differentially expressed genes between B cell clusters
+
+DEGenes <- read.csv("Differential_B.csv") #data in Supplementary Table 3, sheet 1
+
+DEGenes <- DEGenes[DEGenes$p_val_adj<0.1,]
+DorsalGenes <- DEGenes[DEGenes$avg_logFC<0,]
+VentralGenes <- DEGenes[DEGenes$avg_logFC>0,]
+
+TopD <- DorsalGenes$gene[1:10]
+TopV <- VentralGenes$gene[1:10]
+
+##Dorsal markers in dorsal cells
+
+DTarget <- Dlink[(Dlink$targetGene %in% TopD), ]
+DRegulate <- Dlink[(Dlink$regulatoryGene %in% TopD), ]
+DNet <- rbind(DTarget,DRegulate)
+
+DNet <- DNet[order(DNet$weight, decreasing = T),]
+
+##Building a network from the top 300 links predicted to regulate/be regulated by the top 10 dorsal markers
+
+write.table(DNet[1:300,], "DorsalMarkerNet.txt", sep = "\t", row.names = F, quote = F )
+
+##Getting expression metadata to import as a node table to Cytoscape
+
+#Node names
+DNodes <- c(as.character(DNet$regulatoryGene), as.character(DNet$targetGene))
+DNodes <- DNodes[!duplicated(DNodes)]
+DNodes <- data.frame(DNodes)
+colnames(DNodes) <- "name"
+
+#Is it a DE gene?
+DNodes$Marker <- (DNodes$name %in% DEGenes$gene)
+
+#Adding expression data
+DLogFold <- data.frame(DEGenes[,c(1,3)])
+colnames(DLogFold) <- c("name","LogFold")
+DNodes <- merge(DNodes, DLogFold, by = "name", all.x = T)
+
+#Was it one of the top 10 markers used to build the network?
+DNodes$Top10 <- (DNodes$name %in% TopD)
+
+write.csv(DNodes,"DNodes.csv")
+
+
+###The same thing, but for ventral markers in ventral B cells
+
+VTarget <- Vlink[(Vlink$targetGene %in% TopV), ]
+VRegulate <- Vlink[(Vlink$regulatoryGene %in% TopV), ]
+VNet <- rbind(VTarget,VRegulate)
+
+VNet <- VNet[order(VNet$weight, decreasing = T),]
+
+##Building a network from the top 300 links predicted to regulate/be regulated by the top 10 ventral markers
+
+write.table(VNet[1:300,], "VentralMarkerNet.txt", sep = "\t", row.names = F, quote = F )
+
+##Getting expression metadata to import as a node table to Cytoscape
+
+#Node names
+VNodes <- c(as.character(VNet$regulatoryGene), as.character(VNet$targetGene))
+VNodes <- VNodes[!duplicated(VNodes)]
+VNodes <- data.frame(VNodes)
+colnames(VNodes) <- "name"
+
+#Is it a DE gene?
+VNodes$Marker <- (VNodes$name %in% DEGenes$gene)
+
+#Adding expression data
+VLogFold <- data.frame(DEGenes[,c(1,3)])
+colnames(VLogFold) <- c("name","LogFold")
+VNodes <- merge(VNodes, VLogFold, by = "name", all.x = T)
+
+#Was it one of the top 10 markers used to build the network?
+VNodes$Top10 <- (VNodes$name %in% TopV)
+
+write.csv(VNodes,"VNodes.csv")
+
+```
+
+
+Finding networks corresponding to Urah in dorsal cells
+```{r}
+
+#Identifying genes that are predicted to regulate/be regulated by Urah
+
+UrahLink1 <- Dlink[(Dlink$targetGene %in% "Urah"), ]
+UrahLink2 <- Dlink[(Dlink$regulatoryGene %in% "Urah"), ]
+UrahNet <- rbind(UrahLink1,UrahLink2)
+
+#Finding genes predicted to regulate/be regulated by the top 20 Urah-associated genes
+
+UrahSmall <- UrahNet[1:20,]
+UrahReg <- c(as.character(UrahSmall$regulatoryGene),as.character(UrahSmall$targetGene))
+UrahReg <- UrahReg[!UrahReg=="Urah"]
+
+Urah1Step <- Dlink[(Dlink$regulatoryGene %in% UrahReg), ]
+Urah2Step <- Dlink[(Dlink$targetGene %in% UrahReg), ] 
+UrahStep <- rbind(Urah1Step,Urah2Step)
+UrahStep <- UrahStep[order(UrahStep$weight, decreasing = T),]
+
+UrahNet <- rbind(UrahStep,UrahNet)
+UrahNet <- UrahNet[!duplicated(UrahNet$weight),]
+UrahNet <- UrahNet[order(UrahNet$weight, decreasing = T),]
+
+write.table(UrahNet[1:300,], "UrahNetwork_DorsalB.txt", sep = "\t", row.names = F, quote=F)
+
+##Making the node table
+
+#Node names
+UrahNodes <- c(as.character(UrahNet$regulatoryGene), as.character(UrahNet$targetGene))
+UrahNodes <- UrahNodes[!duplicated(UrahNodes)]
+UrahNodes <- data.frame(UrahNodes)
+colnames(UrahNodes) <- "name"
+
+#Is it a DE gene?
+UrahNodes$Marker <- (UrahNodes$name %in% DEGenes$gene)
+
+#Adding expression data
+UrahLogFold <- data.frame(DEGenes[,c(1,3)])
+colnames(UrahLogFold) <- c("name","LogFold")
+UrahNodes <- merge(UrahNodes, UrahLogFold, by = "name", all.x = T)
+
+write.csv(UrahNodes,"UrahNodes.csv")
+
+```
+
+
+Finding networks corresponding to Crym in ventral cells
+```{r}
+
+#Identifying genes that are predicted to regulate/be regulated by Crym
+
+CrymLink1 <- Vlink[(Vlink$targetGene %in% "Crym"), ]
+CrymLink2 <- Vlink[(Vlink$regulatoryGene %in% "Crym"), ]
+CrymNet <- rbind(CrymLink1,CrymLink2)
+
+CrymNet <- CrymNet[order(CrymNet$weight, decreasing = T),]
+
+#Finding genes predicted to regulate/be regulated by the top 20 Crym-associated genes
+CrymSmall <- CrymNet[1:20,]
+CrymReg <- c(as.character(CrymSmall$regulatoryGene),as.character(CrymSmall$targetGene))
+CrymReg <- CrymReg[!CrymReg=="Crym"]
+
+Crym1Step <- Vlink[(Vlink$regulatoryGene %in% CrymReg), ]
+Crym2Step <- Vlink[(Vlink$targetGene %in% CrymReg), ] 
+CrymStep <- rbind(Crym1Step,Crym2Step)
+CrymStep <- CrymStep[order(CrymStep$weight, decreasing = T),]
+
+CrymNet <- rbind(CrymStep,CrymNet)
+CrymNet <- CrymNet[!duplicated(CrymNet$weight),]
+CrymNet <- CrymNet[order(CrymNet$weight, decreasing = T),]
+
+write.table(CrymNet[1:300,], "CrymNetwork_VentralB.txt", sep = "\t", row.names = F, quote=F)
+
+##Making the node table
+
+#Node names
+CrymNodes <- c(as.character(CrymNet$regulatoryGene), as.character(CrymNet$targetGene))
+CrymNodes <- CrymNodes[!duplicated(CrymNodes)]
+CrymNodes <- data.frame(CrymNodes)
+colnames(CrymNodes) <- "name"
+
+#Is it a DE gene?
+CrymNodes$Marker <- (CrymNodes$name %in% DEGenes$gene)
+
+#Adding expression data
+CrymLogFold <- data.frame(DEGenes[,c(1,3)])
+colnames(CrymLogFold) <- c("name","LogFold")
+CrymNodes <- merge(CrymNodes, CrymLogFold, by = "name", all.x = T)
+
+write.csv(CrymNodes,"CrymNodes.csv")
+
+```
