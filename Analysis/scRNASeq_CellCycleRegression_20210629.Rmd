@@ -1,0 +1,147 @@
+---
+title: "scRNA-Seq Cell Cycle Regression"
+author: "SAR"
+date: "06/29/2021"
+---
+
+#setup
+```{r, warning=FALSE,echo=FALSE}
+library(future)
+library(Seurat)
+library(biomaRt)
+library(ggplot2)
+library(sctransform)
+library(reticulate)
+library(dplyr)
+library(viridis)
+library(RColorBrewer)
+library(scales)
+library(patchwork)
+
+options(future.globals.maxSize = 10000 * 1024^2)
+
+```
+We will start from the scRNA-Seq seurat object.
+
+Load data and create Seurat object
+```{r}
+## Dataset for analysis - look carefully for different versions; details about each one can be found on the last chunk of the QC notebook 
+
+scSeq <- readRDS("scSeq.rds")
+scSeq <- subset(scSeq, idents = c(14, 5, 22, 13, 8,17,12, 10, 16, 15,6,4,1,0))
+DimPlot(scSeq)
+
+```
+
+
+
+
+Perform dimensionality reduction by PCA and UMAP embedding
+```{r}
+# These are now standard steps in the Seurat workflow for visualization and clustering
+DefaultAssay(scSeq) <- "integrated"
+scSeq <- RunPCA(scSeq, npcs=150, verbose = T, ndims.print = 1:75)
+
+```
+
+PC_2:4, 6, 7, 12:14, 17, 18, 20, 27, 43, 48,  have cell division genes. Do not include these PC in downstream clustering
+
+
+#clustering
+```{r}
+
+DefaultAssay(scSeq) <- "integrated"
+plan("multiprocess", workers = 24)
+
+scSeq <- RunUMAP(scSeq, reduction = "pca", dims = c(1,5,8:11,15:16,19,21:26, 28:42, 44:47, 49:75), verbose = T)
+
+
+scSeq <- FindNeighbors(scSeq, dims = c(1,5,8:11,15:16,19,21:26, 28:42, 44:47, 49:75), verbose = T)
+scSeq <- FindClusters(scSeq, resolution = c(0.8, seq(0.5, 2, 0.5)), verbose = T)
+```
+
+```{r}
+DimPlot(scSeq, group.by = "integrated_snn_res.2",label = T) + NoLegend() + coord_fixed()
+ggsave("scSeq_subsetSCTnoDivPCs_clusters.png", width = 6, height = 6, units = "in", dpi=300)
+
+DimPlot(scSeq, group.by = "Lane",label = F, shuffle=T) + coord_fixed()
+ggsave("scSeq_subsetSCTnoDivPCs_lanes.png", width = 6, height = 6, units = "in", dpi=300)
+
+DimPlot(scSeq, group.by="Phase", shuffle=T) + coord_fixed()
+ggsave("scSeq_subsetSCTnoDivPCs_phase.png", width = 6, height = 6, units = "in", dpi=300)
+
+DimPlot(scSeq, group.by="Lineage", shuffle=T) + coord_fixed()
+ggsave("scSeq_subsetSCTnoDivPCs_lineage.png", width = 6, height = 6, units = "in", dpi=300)
+
+Idents(scSeq) <- "integrated_snn_res.2"
+
+
+```
+
+
+```{r}
+DefaultAssay(scSeq) <- "SCT"
+FeaturePlot(scSeq, features=c("Egfr", "Dcx", "Mki67", "Slit2", "Pax6", "Rlbp1"), pt.size = 0.2,order=T, ncol=3) + coord_fixed()
+ggsave("scSeq_subsetSCTnoDivPCs_features.png", width = 18, height = 12, units = "in", dpi=300)
+
+DotPlot(scSeq, features=c("Egfr", "Dcx", "Mki67", "Slit2", "Pax6", "Rlbp1"))
+ggsave("scSeq_subsetSCTnoDivPCs_dotplot.png", width = 6, height = 8, units = "in", dpi=300)
+
+saveRDS(scSeq, file = paste0("scSeq_subsetSCTnoDivPCs_", Sys.Date(), ".rds"))
+
+```
+
+```{r}
+DefaultAssay(scSeq) <- "integrated"
+scSeq <- RunUMAP(scSeq, reduction = "pca", dims = c(1,5,8:11,15:16,19,21:26, 28:42, 44:47, 49:50), verbose = T)
+
+
+scSeq <- FindNeighbors(scSeq, dims = c(1,5,8:11,15:16,19,21:26, 28:42, 44:47, 49:50), verbose = T)
+scSeq <- FindClusters(scSeq, resolution = c(0.8, seq(0.5, 2, 0.5)), verbose = T)
+```
+
+```{r}
+DimPlot(scSeq, group.by = "integrated_snn_res.2",label = T) + NoLegend() + coord_fixed()
+ggsave("scSeq_subsetSCTnoDivPCs50_clusters.png", width = 6, height = 6, units = "in", dpi=300)
+
+DimPlot(scSeq, group.by = "Lane",label = F, shuffle=T) + coord_fixed()
+ggsave("scSeq_subsetSCTnoDivPCs50_lanes.png", width = 6, height = 6, units = "in", dpi=300)
+
+DimPlot(scSeq, group.by="Phase", shuffle=T) + coord_fixed()
+ggsave("scSeq_subsetSCTnoDivPCs50_phase.png", width = 6, height = 6, units = "in", dpi=300)
+
+DimPlot(scSeq, group.by="Lineage", shuffle=T, cols = c("#31a354", "#756bb1"), na.value = "NA") + coord_fixed()
+ggsave("scSeq_subsetSCTnoDivPCs50_lineage.png", width = 6, height = 6, units = "in", dpi=300)
+
+Idents(scSeq) <- "integrated_snn_res.2"
+
+
+```
+
+```{r}
+colsc <- brewer_pal(11, "PRGn", direction = 1)
+
+scSeq <- AddMetaData(scSeq, (scSeq@meta.data$Dorsal_Lineage_AUC-scSeq@meta.data$Ventral_Lineage_AUC), "ventrodorsal.index")
+
+FeaturePlot(scSeq, features = "ventrodorsal.index", cols = colsc(11), pt.size = 0.6) + coord_fixed()
+ggsave("scSeq_subsetSCTnoDivPCs50_ventrodorsalscore.png", width = 6, height = 6, units = "in", dpi=300)
+```
+
+
+```{r}
+DefaultAssay(scSeq) <- "SCT"
+
+
+p1 <- FeaturePlot(scSeq, features = c("Egfr", "Dcx", "Mki67", "Slit2", "Pax6", "Rlbp1"), combine = FALSE, order = T, pt.size = 0.4)
+fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
+Plot1 <- lapply(p1, function (x) x + coord_fixed() + fix.sc + NoLegend())
+wrap_plots(Plot1,ncol=3) 
+ggsave("scSeq_subsetSCTnoDivPCs50_features.png", width = 18, height = 12, units = "in", dpi=300)
+
+DotPlot(scSeq, features=c("Egfr", "Dcx", "Mki67", "Slit2", "Pax6", "Rlbp1"))
+ggsave("scSeq_subsetSCTnoDivPCs50_dotplot.png", width = 6, height = 8, units = "in", dpi=300)
+
+saveRDS(scSeq, file = paste0("scSeq_subsetSCTnoDivPCs50_", Sys.Date(), ".rds"))
+
+```
+
