@@ -1,0 +1,227 @@
+---
+title: "Revision Analyses"
+output: html_notebook
+author: SAR
+---
+
+
+#Load libraries and datasets
+```{r}
+library(Seurat)
+library(ggplot2)
+library(viridis)
+library(dplyr)
+library(patchwork)
+library(grid)
+#install.packages('writexl')
+library(writexl)
+
+
+
+options(future.globals.maxSize = 5000 * 1024^2)
+
+#Load whole cell scRNA-Seq Dataset
+scSeq <- readRDS('publication_objects/scSeq.rds')
+
+#Load single nucleus sNucRNA-Seq Dataset
+sNucSeq <- readRDS('publication_objects/sNucSeq.rds')
+
+DimPlot(scSeq, label=T)
+DimPlot(sNucSeq, label=T)
+```
+
+#Set Dorsal and Ventral identities to sNucRNA-Seq cells based on Region
+```{r}
+DimPlot(sNucSeq, group.by = "Region", shuffle=T)
+
+#Generate Metadata
+dorsalCells <-  rownames(filter(sNucSeq@meta.data, Region == 'AD_Nuclei' | Region == "PD_Nuclei"))
+dorsalCells
+
+ventralCells <-  rownames(filter(sNucSeq@meta.data, Region == 'AV_Nuclei' | Region == "PV_Nuclei"))
+ventralCells
+
+#Make Dorsal Ventral Metadata table
+D_Table <- data.frame(dorsalCells, "Dorsal")
+V_Table <- data.frame(ventralCells, "Ventral")
+colnames(D_Table) <- c('Cell_ID', 'DV')
+colnames(V_Table) <- c('Cell_ID', 'DV')
+rownames(D_Table) <- D_Table$Cell_ID
+rownames(V_Table) <- V_Table$Cell_ID
+
+
+
+head(D_Table)
+head(V_Table)
+
+DV_Table <- bind_rows(D_Table, V_Table)
+DV_Table
+
+
+sNucSeq <- AddMetaData(sNucSeq, DV_Table)
+
+#Check Metadata Assignments:
+DimPlot(sNucSeq, group.by = "DV")
+DimPlot(sNucSeq, group.by = "Region")
+
+sNucSeq@meta.data %>%  group_by(Region) %>% count()
+sNucSeq@meta.data %>% filter(DV=='Ventral') %>% group_by(Region) %>% count()
+sNucSeq@meta.data %>% filter(DV=='Dorsal') %>% group_by(Region) %>% count()
+```
+
+
+
+
+#Subset B cells from Datasets
+```{r}
+scSeq.B <- subset(scSeq, idents = c(14,5,22))
+
+sNucSeq.B <- subset(sNucSeq, idents = 7)
+
+
+DimPlot(scSeq.B, label=T)
+
+DimPlot(sNucSeq.B, label=T)
+
+```
+
+##Optional: Remove fulldatasets from Environment to save memory
+```{r}
+rm(scSeq)
+rm(sNucSeq)
+```
+
+##Check contents of sNucRNA-Seq subsetted data:
+```{r}
+colnames(sNucSeq.B@meta.data)
+
+print("B Cells")
+summary(sNucSeq.B@meta.data$CellType_Detailed)
+
+```
+
+#sNucSeq subsets IntegrateData
+##Separate by Region
+```{r}
+sNucSeq.B_RegionList <- SplitObject(sNucSeq.B, split.by = "Region")
+print("B Cells")
+sNucSeq.B_RegionList
+
+```
+
+##SCTransform each of the 4 objects
+```{r}
+##Takes a long time, so load saved results in next chunk:
+
+for (i in 1:length(sNucSeq.B_RegionList)) {
+    sNucSeq.B_RegionList[[i]] <- SCTransform(sNucSeq.B_RegionList[[i]], verbose = FALSE)
+}
+
+
+saveRDS(sNucSeq.B_RegionList, file=paste("/sNucSeq_Bcell_RegionList_SCT_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+
+```
+
+##Integrate Regions
+```{r}
+##Takes a long time, so load saved results in next chunk:
+
+sNucSeq.B_RegionList <- readRDS("/sNucSeq_Bcell_RegionList_SCT_2021-03-31_15-58.rds")
+
+
+
+
+#Use all features to integrate so they all get scaled in the 'integrated' assay:
+sNucSeq.B.features <- SelectIntegrationFeatures(object.list = sNucSeq.B_RegionList, nfeatures=length(rownames(sNucSeq.B@assays$RNA@data)))
+
+sNucSeq.B_RegionList <- PrepSCTIntegration(object.list = sNucSeq.B_RegionList, anchor.features = sNucSeq.B.features, 
+    verbose = FALSE)
+
+
+sNucSeq.B.anchors <- FindIntegrationAnchors(object.list = sNucSeq.B_RegionList, normalization.method = "SCT", 
+    anchor.features = sNucSeq.B.features, verbose = FALSE)
+
+sNucSeq.B.integrated <- IntegrateData(anchorset = sNucSeq.B.anchors, normalization.method = "SCT", 
+    verbose = FALSE)
+
+
+#Save integrated objects:
+saveRDS(sNucSeq.B.integrated, file=paste("/sNucSeq_Bcell_SCTintegrated_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+
+
+
+
+```
+
+##Load saved integrated objects:
+```{r}
+sNucSeq.B.integrated <- readRDS("/sNucSeq_Bcell_SCTintegrated_2021-04-08_10-18.rds")
+
+```
+
+
+
+
+#sNucRNA-Seq B Cells
+
+#(RNA) Differential Gene Expression
+```{r}
+Idents(sNucSeq.B.integrated) <- "DV"
+
+sNucSeq.B_DiffExp <- FindMarkers(sNucSeq.B.integrated,ident.1 = "Dorsal", ident.2 = "Ventral", assay="RNA")
+sNucSeq.B_DiffExp$gene <- rownames(sNucSeq.B_DiffExp)
+
+saveRDS(sNucSeq.B_DiffExp, file=paste("/sNucSeq_RNABcell_DiffExp_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".rds", sep = ""))
+
+
+```
+
+
+
+
+
+
+
+##Which scRNA-Seq Differentially Expressed (DE) Genes are Significantly DE in Nuclei?
+```{r}
+#Any genes in common from the two lists?
+scSeq.B_DiffExp <- readRDS('/Clusters_14_5+22_markers_default_2021-02-09_14-39.rds') #generated in Fig 3 Rmd
+sNucSeq.B_DiffExp <- readRDS('/sNucSeq_RNABcell_DiffExp_2021-04-01_16-56.rds')
+
+intersection <- intersect(scSeq.B_DiffExp$gene, sNucSeq.B_DiffExp$gene)
+paste("There are ", length(intersection), " differentially expressed genes that DV B cell nuclei have in common with DV B cell whole cells.")
+
+
+scSeq.B_DiffExp <- scSeq.B_DiffExp %>%  filter(p_val_adj < 0.05)
+markers_14 <- scSeq.B_DiffExp %>% filter(cluster=='14') 
+markers_5.22 <- scSeq.B_DiffExp %>% filter(cluster=='5+22') 
+
+DE_NucDorsal <- sNucSeq.B_DiffExp %>% filter(avg_log2FC > 0)
+DE_NucVentral <- sNucSeq.B_DiffExp %>% filter(avg_log2FC < 0)
+
+Dorsal_Intersection <- intersect(DE_NucDorsal$gene, markers_5.22$gene)
+Ventral_Intersection <- intersect(DE_NucVentral$gene, markers_14$gene)
+
+
+
+paste("There are ", length(Dorsal_Intersection), " significantly differentially expressed Cluster 5+22 marker genes that Dorsal B cell nuclei differentially express.")
+paste("There are ", length(Ventral_Intersection), " significantly differentially expressed Cluster 14 marker genes that Ventral B cell nuclei differentially express.")
+
+
+
+
+paste("Dorsal: ", Dorsal_Intersection)
+paste("Ventral: ", Ventral_Intersection)
+
+
+
+IntersectionGenes <- c(Dorsal_Intersection, Ventral_Intersection)
+IntersectionGenes <- as_data_frame(IntersectionGenes)
+write_xlsx(list(sNucRNASeq_BcellDiffExpress = sNucSeq.B_DiffExp, Conserved_Genes = IntersectionGenes), path = "/Supplementary_Table_sNucRNASeq_DiffExpression.xlsx")
+
+```
+
+
+
+
+
