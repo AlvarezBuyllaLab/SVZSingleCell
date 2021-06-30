@@ -1,0 +1,1304 @@
+---
+title: "Revision Analyses: RNAscope Quantifications"
+output: html_notebook
+author: SAR
+---
+
+
+#Load libraries
+```{r}
+
+library(ggplot2)
+library(viridis)
+library(dplyr)
+library(patchwork)
+library(cowplot)
+library(grid)
+library(ggpubr)
+library(rgeos)
+library(sp)
+```
+
+#Load datasets from CSV files
+```{r}
+
+#####Crym data:
+#XY position
+Crym.1 <- read.csv('/AC335 Crym 555S100b 488_R_[ii26_TileScan_1_Merged_Image_27]_Statistics/AC335 Crym 555S100b 488_R_[ii26_TileScan_1_Merged_Image_27]_Position.csv', header=T, skip=3)
+
+Crym.2 <- read.csv('/AC338 Crym 555S100b 488_R_[ii28_TileScan_2_Merged_Image_29]_Statistics/AC338 Crym 555S100b 488_R_[ii28_TileScan_2_Merged_Image_29]_Position.csv', header=T, skip=3)
+
+Crym.3 <- read.csv('/AC351 Crym 555 S100b 488 R_[ii10_TileScan_1_Merged_Image_11]_Statistics/AC351 Crym 555 S100b 488 R_[ii10_TileScan_1_Merged_Image_11]_Position.csv', header=T, skip=3)
+
+
+#VSVZ Measurement Line
+Crym.1dist <- read.csv('/AC335 Crym 555S100b 488_R_[ii26_TileScan_1_Merged_Image_27]_VSVZDistance_Statistics/AC335 Crym 555S100b 488_R_[ii26_TileScan_1_Merged_Image_27]_VSVZDistance_Position.csv', header=T, skip=3)
+
+Crym.2dist <- read.csv('/AC338 Crym 555S100b 488_R_[ii28_TileScan_2_Merged_Image_29]_VSVZDistance_Statistics/AC338 Crym 555S100b 488_R_[ii28_TileScan_2_Merged_Image_29]_VSVZDistance_Position.csv', header=T, skip=3)
+
+Crym.3dist <- read.csv('/AC351 Crym 555 S100b 488 R_[ii10_TileScan_1_Merged_Image_11]_VSVZDistance_Statistics/AC351 Crym 555 S100b 488 R_[ii10_TileScan_1_Merged_Image_11]_VSVZDistance_Position.csv', header=T, skip=3)
+
+
+
+#####Urah data:
+#XY position
+Urah.1 <- read.csv('/AC335 Urah 555S100b 488_R_[ii21_TileScan_2_Merged_Image_22]_Statistics/AC335 Urah 555S100b 488_R_[ii21_TileScan_2_Merged_Image_22]_Position.csv', header=T, skip=3)
+
+Urah.2 <- read.csv('/AC338 Urah 555S100b 488_R_[ii22_TileScan_3_Merged_Image_23]_Statistics/AC338 Urah 555S100b 488_R_[ii22_TileScan_3_Merged_Image_23]_Position.csv', header=T, skip=3)
+
+Urah.3 <- read.csv('/AC350 Urah 555  S100b 488 R_[ii19_TileScan_1_Merged_Image_20]_Statistics/AC350 Urah 555  S100b 488 R_[ii19_TileScan_1_Merged_Image_20]_Position.csv', header=T, skip=3)
+
+
+#VSVZ Measurement Line
+Urah.1dist <- read.csv('/AC335 Urah 555S100b 488_R_[ii21_TileScan_2_Merged_Image_22]_VSVZDistance_Statistics/AC335 Urah 555S100b 488_R_[ii21_TileScan_2_Merged_Image_22]_VSVZDistance_Position.csv', header=T, skip=3)
+
+Urah.2dist <- read.csv('/AC338 Urah 555S100b 488_R_[ii22_TileScan_3_Merged_Image_23]_VSVZDistance_Statistics/AC338 Urah 555S100b 488_R_[ii22_TileScan_3_Merged_Image_23]_VSVZDistance_Position.csv', header=T, skip=3)
+
+Urah.3dist <- read.csv('/AC350 Urah 555  S100b 488 R_[ii19_TileScan_1_Merged_Image_20]_VSVZDistance_Statistics/AC350 Urah 555  S100b 488 R_[ii19_TileScan_1_Merged_Image_20]_VSVZDistance_Position.csv', header=T, skip=3)
+
+
+
+#####Dio2 data:
+#XY position relative to reference frame
+Dio2.1 <- read.csv('/AC335 Dio2 555S100b 488_R_[ii26_TileScan_1_Merged_Image_27]_Statistics/AC335 Dio2 555S100b 488_R_[ii26_TileScan_1_Merged_Image_27]_Position.csv', header=T, skip=3)
+
+Dio2.2 <- read.csv('/AC338 Dio2 555S100b 488_R_[ii22_TileScan_1_Merged_Image_23]_Statistics/AC338 Dio2 555S100b 488_R_[ii22_TileScan_1_Merged_Image_23]_Position.csv', header=T, skip=3)
+
+Dio2.3 <- read.csv('/AC350 Dio2 555 S100b 488_[ii23_TileScan_1_Merged_Image_24]_Statistics/AC350 Dio2 555 S100b 488_[ii23_TileScan_1_Merged_Image_24]_Position.csv', header=T, skip=3)
+
+
+#VSVZ Measurement Line
+Dio2.1dist <- read.csv('/AC335 Dio2 555S100b 488_R_[ii26_TileScan_1_Merged_Image_27]_VSVZDistance_Statistics/AC335 Dio2 555S100b 488_R_[ii26_TileScan_1_Merged_Image_27]_VSVZDistance_Position.csv', header=T, skip=3)
+
+Dio2.2dist <- read.csv('/AC338 Dio2 555S100b 488_R_[ii22_TileScan_1_Merged_Image_23]_VSVZDistance_Statistics/AC338 Dio2 555S100b 488_R_[ii22_TileScan_1_Merged_Image_23]_VSVZDistance_Position.csv', header=T, skip=3)
+
+Dio2.3dist <- read.csv('/AC350 Dio2 555 S100b 488_[ii23_TileScan_1_Merged_Image_24]_VSVZDistance_Statistics/AC350 Dio2 555 S100b 488_[ii23_TileScan_1_Merged_Image_24]_VSVZDistance_Position.csv', header=T, skip=3)
+
+
+
+#####Slit2 data:
+#XY position relative to reference frame
+Slit2.1 <- read.csv('/AC335 Slit2 555 DCX 488_ReProbe_[ii24_TileScan_2_Merged_Image_25]_Statistics/AC335 Slit2 555 DCX 488_ReProbe_[ii24_TileScan_2_Merged_Image_25]_Position.csv', header=T, skip=3)
+
+Slit2.2 <- read.csv('/AC338 Slit2 555DCX 488_R_[ii19_TileScan_1_Merged_Image_20]_Statistics/AC338 Slit2 555DCX 488_R_[ii19_TileScan_1_Merged_Image_20]_Position.csv', header=T, skip=3)
+
+Slit2.3 <- read.csv('/AC350 Slit2 555 DCX 488_[ii25_TileScan_2_Merged_Image_26]_Statistics/AC350 Slit2 555 DCX 488_[ii25_TileScan_2_Merged_Image_26]_Position.csv', header=T, skip=3)
+
+
+#VSVZ Measurement Line
+Slit2.1dist <- read.csv('/AC335 Slit2 555 DCX 488_ReProbe_[ii24_TileScan_2_Merged_Image_25]_VSVZDistance_Statistics/AC335 Slit2 555 DCX 488_ReProbe_[ii24_TileScan_2_Merged_Image_25]_VSVZDistance_Position.csv', header=T, skip=3)
+
+Slit2.2dist <- read.csv('/AC338 Slit2 555DCX 488_R_[ii19_TileScan_1_Merged_Image_20]_VSVZDistance_Statistics/AC338 Slit2 555DCX 488_R_[ii19_TileScan_1_Merged_Image_20]_VSVZDistance_Position.csv', header=T, skip=3)
+
+Slit2.3dist <- read.csv('/AC350 Slit2 555 DCX 488_[ii25_TileScan_2_Merged_Image_26]_VSVZDistance_Statistics/AC350 Slit2 555 DCX 488_[ii25_TileScan_2_Merged_Image_26]_VSVZDistance_Position.csv', header=T, skip=3)
+
+
+
+#####Rlbp1 data:
+#XY position relative to reference frame
+Rlbp1.1 <- read.csv('/AC335 Rlbp1 555S Dcx 488_R_[ii17_TileScan_1_Merged_Image_18]_Statistics/AC335 Rlbp1 555S Dcx 488_R_[ii17_TileScan_1_Merged_Image_18]_Position.csv', header=T, skip=3)
+
+Rlbp1.2 <- read.csv('/AC338 Rlbp1 555S Dcx 488_R_[ii20_TileScan_1_Merged_Image_21]_Statistics/AC338 Rlbp1 555S Dcx 488_R_[ii20_TileScan_1_Merged_Image_21]_Position.csv', header=T, skip=3)
+
+Rlbp1.3 <- read.csv('/AC350 Rlbp1 555 DCX 488_R_[ii24_TileScan_1_Merged_Image_25]_Statistics/AC350 Rlbp1 555 DCX 488_R_[ii24_TileScan_1_Merged_Image_25]_Position.csv', header=T, skip=3)
+
+
+#VSVZ Measurement Line
+Rlbp1.1dist <- read.csv('/AC335 Rlbp1 555S Dcx 488_R_[ii17_TileScan_1_Merged_Image_18]_VSVZDistance_Statistics/AC335 Rlbp1 555S Dcx 488_R_[ii17_TileScan_1_Merged_Image_18]_VSVZDistance_Position.csv', header=T, skip=3)
+
+Rlbp1.2dist <- read.csv('/AC338 Rlbp1 555S Dcx 488_R_[ii20_TileScan_1_Merged_Image_21]_VSVZDistance_Statistics/AC338 Rlbp1 555S Dcx 488_R_[ii20_TileScan_1_Merged_Image_21]_VSVZDistance_Position.csv', header=T, skip=3)
+
+Rlbp1.3dist <- read.csv('/AC350 Rlbp1 555 DCX 488_R_[ii24_TileScan_1_Merged_Image_25]_VSVZDistance_Statistics/AC350 Rlbp1 555 DCX 488_R_[ii24_TileScan_1_Merged_Image_25]_VSVZDistance_Position.csv', header=T, skip=3)
+
+```
+
+
+##Filter for S100B-negative spots
+```{r}
+Crym.1 <- Crym.1 %>% filter(S100b =="S100B-")
+Crym.2 <- Crym.2 %>% filter(S100b =="S100B-")
+Crym.3 <- Crym.3 %>% filter(S100b =="S100B-")
+
+Urah.1 <- Urah.1 %>% filter(S100b =="S100B-")
+Urah.2 <- Urah.2 %>% filter(S100B =="S100B-")
+Urah.3 <- Urah.3 %>% filter(S100b =="DCX-") #An error in Imaris labeled spots as either "S100B+" or "DCX-". The slide was stained for S100B.
+
+Dio2.1 <- Dio2.1 %>% filter(s100b =="S100B-")
+Dio2.2 <- Dio2.2 %>% filter(S100B =="S100B-")
+Dio2.3 <- Dio2.3 %>% filter(s100b =="S100B-")
+```
+
+##Separate DCX+ and DCX- spots
+```{r}
+Slit2.1pos <- Slit2.1 %>% filter(DCX =="S100B+") #An error in Imaris labeled spots as either "S100B+" or "S100B-". The slide was stained for DCX.
+Slit2.1neg <- Slit2.1 %>% filter(DCX =="S100B-")
+
+Slit2.2pos <- Slit2.2 %>% filter(DCX =="DCX+")
+Slit2.2neg <- Slit2.2 %>% filter(DCX =="DCX-")
+
+Slit2.3pos <- Slit2.3 %>% filter(DCX =="S100B+") #An error in Imaris labeled spots as either "S100B+" or "S100B-". The slide was stained for DCX.
+Slit2.3neg <- Slit2.3 %>% filter(DCX =="S100B-")
+
+
+Rlbp1.1pos <- Rlbp1.1 %>% filter(DCX =="DCX+")
+Rlbp1.1neg <- Rlbp1.1 %>% filter(DCX =="DCX-")
+
+Rlbp1.2pos <- Rlbp1.2 %>% filter(DCX =="DCX+")
+Rlbp1.2neg <- Rlbp1.2 %>% filter(DCX =="DCX-")
+
+Rlbp1.3pos <- Rlbp1.3 %>% filter(DCX =="S100B+") #An error in Imaris labeled spots as either "S100B+" or "DCX-". The slide was stained for DCX.
+Rlbp1.3neg <- Rlbp1.3 %>% filter(DCX =="DCX-") 
+
+```
+
+
+
+
+
+
+
+
+#Plot each RNAscope spot as a histogram along the full length of the VSVZ:
+##Crym
+```{r}
+#Crym.1
+Crym.1ptSP <-SpatialPoints(as.matrix(Crym.1[, 1:2]))
+Crym.1ptSP
+length(Crym.1ptSP)
+plot(Crym.1ptSP)
+
+Crym.1dist <- Crym.1dist %>% arrange(ID)
+Crym.1lineSP <-Line(as.matrix(Crym.1dist[, 1:2]))
+Crym.1lineSPlist <- SpatialLines(list(Lines(Crym.1lineSP, ID="a")))
+
+plot(Crym.1lineSPlist)
+str(Crym.1lineSPlist)
+
+Crym.1intersections <- gProject(Crym.1lineSPlist, Crym.1ptSP)
+pointsOnLine <- gInterpolate(Crym.1lineSPlist, Crym.1intersections)
+
+#save a plot of the raw data
+png(paste("/Crym-1_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Crym.1lineSPlist, axes=TRUE)
+plot(Crym.1ptSP, col = "blue", add = TRUE)
+plot(pointsOnLine, col = "red", add = TRUE)
+
+dev.off()
+
+Crym.1fraction <- gProject(Crym.1lineSPlist, Crym.1ptSP, normalized = T)
+head(Crym.1fraction)
+length(Crym.1fraction)
+head(pointsOnLine)
+
+#density plot
+ggdensity(Crym.1fraction,   y = "..density..", fill="red", add="median", rug=T)
+ggsave(paste("/Crym-1_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Crym.1fraction,   y = "..count..", fill="red", add="median", rug=T, bins=30)
+ggsave(paste("/Crym-1_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+#Crym.2
+Crym.2ptSP <-SpatialPoints(as.matrix(Crym.2[, 1:2]))
+Crym.2ptSP
+length(Crym.2ptSP)
+plot(Crym.2ptSP)
+
+Crym.2dist <- Crym.2dist %>% arrange(ID)
+Crym.2lineSP <-Line(as.matrix(Crym.2dist[, 1:2]))
+Crym.2lineSPlist <- SpatialLines(list(Lines(Crym.2lineSP, ID="a")))
+
+plot(Crym.2lineSPlist)
+str(Crym.2lineSPlist)
+
+
+Crym.2intersections <- gProject(Crym.2lineSPlist, Crym.2ptSP)
+pointsOnLine <- gInterpolate(Crym.2lineSPlist, Crym.2intersections)
+
+#save a plot of the raw data
+png(paste("/Crym-2_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Crym.2lineSPlist, axes=TRUE)
+plot(Crym.2ptSP, col = "blue", add = TRUE)
+plot(pointsOnLine, col = "red", add = TRUE)
+
+dev.off()
+
+Crym.2fraction <- gProject(Crym.2lineSPlist, Crym.2ptSP, normalized = T)
+head(Crym.2fraction)
+length(Crym.2fraction)
+head(pointsOnLine)
+
+#density plot
+ggdensity(Crym.2fraction,   y = "..density..", fill="red", add="median", rug=T)
+ggsave(paste("/Crym-2_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Crym.2fraction,   y = "..count..", fill="red", add="median", rug=T, bins=30)
+ggsave(paste("/Crym-2_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+
+#Crym.3
+Crym.3ptSP <-SpatialPoints(as.matrix(Crym.3[, 1:2]))
+Crym.3ptSP
+length(Crym.3ptSP)
+plot(Crym.3ptSP)
+
+Crym.3dist <- Crym.3dist %>% arrange(ID)
+Crym.3lineSP <-Line(as.matrix(Crym.3dist[, 1:2]))
+Crym.3lineSPlist <- SpatialLines(list(Lines(Crym.3lineSP, ID="a")))
+
+plot(Crym.3lineSPlist)
+str(Crym.3lineSPlist)
+
+
+Crym.3intersections <- gProject(Crym.3lineSPlist, Crym.3ptSP)
+pointsOnLine <- gInterpolate(Crym.3lineSPlist, Crym.3intersections)
+
+#save a plot of the raw data
+png(paste("/Crym-3_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Crym.3lineSPlist, axes=TRUE)
+plot(Crym.3ptSP, col = "blue", add = TRUE)
+plot(pointsOnLine, col = "red", add = TRUE)
+
+dev.off()
+
+Crym.3fraction <- gProject(Crym.3lineSPlist, Crym.3ptSP, normalized = T)
+head(Crym.3fraction)
+length(Crym.3fraction)
+head(pointsOnLine)
+
+#density plot
+ggdensity(Crym.3fraction,   y = "..density..", fill="red", add="median", rug=T)
+ggsave(paste("/Crym-3_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Crym.3fraction,   y = "..count..", fill="red", add="median", rug=T, bins=30)
+ggsave(paste("/Crym-3_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+```
+
+##Urah
+```{r}
+#Urah.1
+Urah.1ptSP <-SpatialPoints(as.matrix(Urah.1[, 1:2]))
+Urah.1ptSP
+length(Urah.1ptSP)
+plot(Urah.1ptSP)
+
+Urah.1dist <- Urah.1dist %>% arrange(ID)
+Urah.1lineSP <-Line(as.matrix(Urah.1dist[, 1:2]))
+Urah.1lineSPlist <- SpatialLines(list(Lines(Urah.1lineSP, ID="a")))
+
+plot(Urah.1lineSPlist)
+str(Urah.1lineSPlist)
+
+Urah.1intersections <- gProject(Urah.1lineSPlist, Urah.1ptSP)
+pointsOnLine <- gInterpolate(Urah.1lineSPlist, Urah.1intersections)
+
+#save a plot of the raw data
+png(paste("/Urah-1_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Urah.1lineSPlist, axes=TRUE)
+plot(Urah.1ptSP, col = "blue", add = TRUE)
+plot(pointsOnLine, col = "red", add = TRUE)
+
+dev.off()
+
+Urah.1fraction <- gProject(Urah.1lineSPlist, Urah.1ptSP, normalized = T)
+head(Urah.1fraction)
+length(Urah.1fraction)
+head(pointsOnLine)
+
+#density plot
+ggdensity(Urah.1fraction,   y = "..density..", fill="red", add="median", rug=T)
+ggsave(paste("/Urah-1_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Urah.1fraction,   y = "..count..", fill="red", add="median", rug=T, bins=30)
+ggsave(paste("/Urah-1_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+#Urah.2
+Urah.2ptSP <-SpatialPoints(as.matrix(Urah.2[, 1:2]))
+Urah.2ptSP
+length(Urah.2ptSP)
+plot(Urah.2ptSP)
+
+Urah.2dist <- Urah.2dist %>% arrange(ID)
+Urah.2lineSP <-Line(as.matrix(Urah.2dist[, 1:2]))
+Urah.2lineSPlist <- SpatialLines(list(Lines(Urah.2lineSP, ID="a")))
+
+plot(Urah.2lineSPlist)
+str(Urah.2lineSPlist)
+
+
+Urah.2intersections <- gProject(Urah.2lineSPlist, Urah.2ptSP)
+pointsOnLine <- gInterpolate(Urah.2lineSPlist, Urah.2intersections)
+
+#save a plot of the raw data
+png(paste("/Urah-2_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Urah.2lineSPlist, axes=TRUE)
+plot(Urah.2ptSP, col = "blue", add = TRUE)
+plot(pointsOnLine, col = "red", add = TRUE)
+
+dev.off()
+
+Urah.2fraction <- gProject(Urah.2lineSPlist, Urah.2ptSP, normalized = T)
+head(Urah.2fraction)
+length(Urah.2fraction)
+head(pointsOnLine)
+
+#density plot
+ggdensity(Urah.2fraction,   y = "..density..", fill="red", add="median", rug=T)
+ggsave(paste("/Urah-2_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Urah.2fraction,   y = "..count..", fill="red", add="median", rug=T, bins=30)
+ggsave(paste("/Urah-2_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+
+#Urah.3
+Urah.3ptSP <-SpatialPoints(as.matrix(Urah.3[, 1:2]))
+Urah.3ptSP
+length(Urah.3ptSP)
+plot(Urah.3ptSP)
+
+Urah.3dist <- Urah.3dist %>% arrange(ID)
+Urah.3lineSP <-Line(as.matrix(Urah.3dist[, 1:2]))
+Urah.3lineSPlist <- SpatialLines(list(Lines(Urah.3lineSP, ID="a")))
+
+plot(Urah.3lineSPlist)
+str(Urah.3lineSPlist)
+
+
+Urah.3intersections <- gProject(Urah.3lineSPlist, Urah.3ptSP)
+pointsOnLine <- gInterpolate(Urah.3lineSPlist, Urah.3intersections)
+
+#save a plot of the raw data
+png(paste("/Urah-3_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Urah.3lineSPlist, axes=TRUE)
+plot(Urah.3ptSP, col = "blue", add = TRUE)
+plot(pointsOnLine, col = "red", add = TRUE)
+
+dev.off()
+
+Urah.3fraction <- gProject(Urah.3lineSPlist, Urah.3ptSP, normalized = T)
+head(Urah.3fraction)
+length(Urah.3fraction)
+head(pointsOnLine)
+
+#density plot
+ggdensity(Urah.3fraction,   y = "..density..", fill="red", add="median", rug=T)
+ggsave(paste("/Urah-3_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Urah.3fraction,   y = "..count..", fill="red", add="median", rug=T, bins=30)
+ggsave(paste("/Urah-3_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+```
+
+##Dio2
+```{r}
+#Dio2.1
+Dio2.1ptSP <-SpatialPoints(as.matrix(Dio2.1[, 1:2]))
+Dio2.1ptSP
+length(Dio2.1ptSP)
+plot(Dio2.1ptSP)
+
+Dio2.1dist <- Dio2.1dist %>% arrange(ID)
+Dio2.1lineSP <-Line(as.matrix(Dio2.1dist[, 1:2]))
+Dio2.1lineSPlist <- SpatialLines(list(Lines(Dio2.1lineSP, ID="a")))
+
+plot(Dio2.1lineSPlist)
+str(Dio2.1lineSPlist)
+
+Dio2.1intersections <- gProject(Dio2.1lineSPlist, Dio2.1ptSP)
+pointsOnLine <- gInterpolate(Dio2.1lineSPlist, Dio2.1intersections)
+
+#save a plot of the raw data
+png(paste("/Dio2-1_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Dio2.1lineSPlist, axes=TRUE)
+plot(Dio2.1ptSP, col = "blue", add = TRUE)
+plot(pointsOnLine, col = "red", add = TRUE)
+
+dev.off()
+
+Dio2.1fraction <- gProject(Dio2.1lineSPlist, Dio2.1ptSP, normalized = T)
+head(Dio2.1fraction)
+length(Dio2.1fraction)
+head(pointsOnLine)
+
+#density plot
+ggdensity(Dio2.1fraction,   y = "..density..", fill="red", add="median", rug=T)
+ggsave(paste("/Dio2-1_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Dio2.1fraction,   y = "..count..", fill="red", add="median", rug=T, bins=30)
+ggsave(paste("/Dio2-1_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+#Dio2.2
+Dio2.2ptSP <-SpatialPoints(as.matrix(Dio2.2[, 1:2]))
+Dio2.2ptSP
+length(Dio2.2ptSP)
+plot(Dio2.2ptSP)
+
+Dio2.2dist <- Dio2.2dist %>% arrange(ID)
+Dio2.2lineSP <-Line(as.matrix(Dio2.2dist[, 1:2]))
+Dio2.2lineSPlist <- SpatialLines(list(Lines(Dio2.2lineSP, ID="a")))
+
+plot(Dio2.2lineSPlist)
+str(Dio2.2lineSPlist)
+
+
+Dio2.2intersections <- gProject(Dio2.2lineSPlist, Dio2.2ptSP)
+pointsOnLine <- gInterpolate(Dio2.2lineSPlist, Dio2.2intersections)
+
+#save a plot of the raw data
+png(paste("/Dio2-2_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Dio2.2lineSPlist, axes=TRUE)
+plot(Dio2.2ptSP, col = "blue", add = TRUE)
+plot(pointsOnLine, col = "red", add = TRUE)
+
+dev.off()
+
+Dio2.2fraction <- gProject(Dio2.2lineSPlist, Dio2.2ptSP, normalized = T)
+head(Dio2.2fraction)
+length(Dio2.2fraction)
+head(pointsOnLine)
+
+#density plot
+ggdensity(Dio2.2fraction,   y = "..density..", fill="red", add="median", rug=T)
+ggsave(paste("/Dio2-2_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Dio2.2fraction,   y = "..count..", fill="red", add="median", rug=T, bins=30)
+ggsave(paste("/Dio2-2_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+
+#Dio2.3
+Dio2.3ptSP <-SpatialPoints(as.matrix(Dio2.3[, 1:2]))
+Dio2.3ptSP
+length(Dio2.3ptSP)
+plot(Dio2.3ptSP)
+
+Dio2.3dist <- Dio2.3dist %>% arrange(ID)
+Dio2.3lineSP <-Line(as.matrix(Dio2.3dist[, 1:2]))
+Dio2.3lineSPlist <- SpatialLines(list(Lines(Dio2.3lineSP, ID="a")))
+
+plot(Dio2.3lineSPlist)
+str(Dio2.3lineSPlist)
+
+
+Dio2.3intersections <- gProject(Dio2.3lineSPlist, Dio2.3ptSP)
+pointsOnLine <- gInterpolate(Dio2.3lineSPlist, Dio2.3intersections)
+
+#save a plot of the raw data
+png(paste("/Dio2-3_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Dio2.3lineSPlist, axes=TRUE)
+plot(Dio2.3ptSP, col = "blue", add = TRUE)
+plot(pointsOnLine, col = "red", add = TRUE)
+
+dev.off()
+
+Dio2.3fraction <- gProject(Dio2.3lineSPlist, Dio2.3ptSP, normalized = T)
+head(Dio2.3fraction)
+length(Dio2.3fraction)
+head(pointsOnLine)
+
+#density plot
+ggdensity(Dio2.3fraction,   y = "..density..", fill="red", add="median", rug=T)
+ggsave(paste("/Dio2-3_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Dio2.3fraction,   y = "..count..", fill="red", add="median", rug=T, bins=30)
+ggsave(paste("/Dio2-3_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+```
+
+##Slit2
+```{r}
+
+#Slit2.1pos
+Slit2.1ptSPpos <-SpatialPoints(as.matrix(Slit2.1pos[, 1:2]))
+Slit2.1ptSPpos
+length(Slit2.1ptSPpos)
+plot(Slit2.1ptSPpos)
+?SpatialPointsDataFrame
+
+Slit2.1dist <- Slit2.1dist %>% arrange(ID)
+Slit2.1lineSP <-Line(as.matrix(Slit2.1dist[, 1:2]))
+Slit2.1lineSPlist <- SpatialLines(list(Lines(Slit2.1lineSP, ID="a")))
+
+plot(Slit2.1lineSPlist)
+str(Slit2.1lineSPlist)
+
+Slit2.1intersectionsPos <- gProject(Slit2.1lineSPlist, Slit2.1ptSPpos)
+pointsOnLinePos <- gInterpolate(Slit2.1lineSPlist, Slit2.1intersectionsPos)
+
+#save a plot of the raw data
+png(paste("/Slit2-1pos_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Slit2.1lineSPlist, axes=TRUE)
+plot(Slit2.1ptSPpos, col = "blue", add = TRUE)
+plot(pointsOnLinePos, col = "red", add = TRUE)
+
+dev.off()
+
+Slit2.1fractionPos <- gProject(Slit2.1lineSPlist, Slit2.1ptSPpos, normalized = T)
+head(Slit2.1fractionPos)
+length(Slit2.1fractionPos)
+head(pointsOnLinePos)
+
+
+#Slit2.1neg
+Slit2.1ptSPneg <-SpatialPoints(as.matrix(Slit2.1neg[, 1:2]))
+Slit2.1ptSPneg
+length(Slit2.1ptSPneg)
+plot(Slit2.1ptSPneg)
+
+
+
+plot(Slit2.1lineSPlist)
+str(Slit2.1lineSPlist)
+
+Slit2.1intersectionsNeg <- gProject(Slit2.1lineSPlist, Slit2.1ptSPneg)
+pointsOnLineNeg <- gInterpolate(Slit2.1lineSPlist, Slit2.1intersectionsNeg)
+
+#save a plot of the raw data
+png(paste("/Slit2-1neg_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Slit2.1lineSPlist, axes=TRUE)
+plot(Slit2.1ptSPneg, col = "blue", add = TRUE)
+plot(pointsOnLineNeg, col = "red", add = TRUE)
+
+dev.off()
+
+Slit2.1fractionNeg <- gProject(Slit2.1lineSPlist, Slit2.1ptSPneg, normalized = T)
+head(Slit2.1fractionNeg)
+length(Slit2.1fractionNeg)
+head(pointsOnLineNeg)
+
+#combine DCX positive and negative fractions to do density plots
+Slit2.1fractionPos <- as.data.frame(Slit2.1fractionPos)
+Slit2.1fractionPos$DCX <- "Positive"
+colnames(Slit2.1fractionPos) <- c("Distance", "DCX")
+head(Slit2.1fractionPos)
+
+Slit2.1fractionNeg <- as.data.frame(Slit2.1fractionNeg)
+Slit2.1fractionNeg$DCX <- "Negative"
+colnames(Slit2.1fractionNeg) <- c("Distance", "DCX")
+head(Slit2.1fractionNeg)
+
+Slit2.1fraction <- bind_rows(Slit2.1fractionPos, Slit2.1fractionNeg)
+Slit2.1fraction
+
+
+#density plot
+ggdensity(Slit2.1fraction,  "Distance", y = "..density..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Slit2-1_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Slit2.1fraction,  "Distance", y = "..count..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Slit2-1_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+#Slit2.2
+#Slit2.2pos
+Slit2.2ptSPpos <-SpatialPoints(as.matrix(Slit2.2pos[, 1:2]))
+Slit2.2ptSPpos
+length(Slit2.2ptSPpos)
+plot(Slit2.2ptSPpos)
+
+
+Slit2.2dist <- Slit2.2dist %>% arrange(ID)
+Slit2.2lineSP <-Line(as.matrix(Slit2.2dist[, 1:2]))
+Slit2.2lineSPlist <- SpatialLines(list(Lines(Slit2.2lineSP, ID="a")))
+
+plot(Slit2.2lineSPlist)
+str(Slit2.2lineSPlist)
+
+Slit2.2intersectionsPos <- gProject(Slit2.2lineSPlist, Slit2.2ptSPpos)
+pointsOnLinePos <- gInterpolate(Slit2.2lineSPlist, Slit2.2intersectionsPos)
+
+#save a plot of the raw data
+png(paste("/Slit2-2pos_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Slit2.2lineSPlist, axes=TRUE)
+plot(Slit2.2ptSPpos, col = "blue", add = TRUE)
+plot(pointsOnLinePos, col = "red", add = TRUE)
+
+dev.off()
+
+Slit2.2fractionPos <- gProject(Slit2.2lineSPlist, Slit2.2ptSPpos, normalized = T)
+head(Slit2.2fractionPos)
+length(Slit2.2fractionPos)
+head(pointsOnLinePos)
+
+
+#Slit2.2neg
+Slit2.2ptSPneg <-SpatialPoints(as.matrix(Slit2.2neg[, 1:2]))
+Slit2.2ptSPneg
+length(Slit2.2ptSPneg)
+plot(Slit2.2ptSPneg)
+
+
+
+plot(Slit2.2lineSPlist)
+str(Slit2.2lineSPlist)
+
+Slit2.2intersectionsNeg <- gProject(Slit2.2lineSPlist, Slit2.2ptSPneg)
+pointsOnLineNeg <- gInterpolate(Slit2.2lineSPlist, Slit2.2intersectionsNeg)
+
+#save a plot of the raw data
+png(paste("/Slit2-2neg_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Slit2.2lineSPlist, axes=TRUE)
+plot(Slit2.2ptSPneg, col = "blue", add = TRUE)
+plot(pointsOnLineNeg, col = "red", add = TRUE)
+
+dev.off()
+
+Slit2.2fractionNeg <- gProject(Slit2.2lineSPlist, Slit2.2ptSPneg, normalized = T)
+head(Slit2.2fractionNeg)
+length(Slit2.2fractionNeg)
+head(pointsOnLineNeg)
+
+#combine DCX positive and negative fractions to do density plots
+Slit2.2fractionPos <- as.data.frame(Slit2.2fractionPos)
+Slit2.2fractionPos$DCX <- "Positive"
+colnames(Slit2.2fractionPos) <- c("Distance", "DCX")
+head(Slit2.2fractionPos)
+
+Slit2.2fractionNeg <- as.data.frame(Slit2.2fractionNeg)
+Slit2.2fractionNeg$DCX <- "Negative"
+colnames(Slit2.2fractionNeg) <- c("Distance", "DCX")
+head(Slit2.2fractionNeg)
+
+Slit2.2fraction <- bind_rows(Slit2.2fractionPos, Slit2.2fractionNeg)
+Slit2.2fraction
+
+
+#density plot
+ggdensity(Slit2.2fraction,  "Distance", y = "..density..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Slit2-2_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Slit2.2fraction,  "Distance", y = "..count..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Slit2-2_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+
+
+#Slit2.3
+#Slit2.3pos
+Slit2.3ptSPpos <-SpatialPoints(as.matrix(Slit2.3pos[, 1:2]))
+Slit2.3ptSPpos
+length(Slit2.3ptSPpos)
+plot(Slit2.3ptSPpos)
+
+
+Slit2.3dist <- Slit2.3dist %>% arrange(ID)
+Slit2.3lineSP <-Line(as.matrix(Slit2.3dist[, 1:2]))
+Slit2.3lineSPlist <- SpatialLines(list(Lines(Slit2.3lineSP, ID="a")))
+
+plot(Slit2.3lineSPlist)
+str(Slit2.3lineSPlist)
+
+Slit2.3intersectionsPos <- gProject(Slit2.3lineSPlist, Slit2.3ptSPpos)
+pointsOnLinePos <- gInterpolate(Slit2.3lineSPlist, Slit2.3intersectionsPos)
+
+#save a plot of the raw data
+png(paste("/Slit2-3pos_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Slit2.3lineSPlist, axes=TRUE)
+plot(Slit2.3ptSPpos, col = "blue", add = TRUE)
+plot(pointsOnLinePos, col = "red", add = TRUE)
+
+dev.off()
+
+Slit2.3fractionPos <- gProject(Slit2.3lineSPlist, Slit2.3ptSPpos, normalized = T)
+head(Slit2.3fractionPos)
+length(Slit2.3fractionPos)
+head(pointsOnLinePos)
+
+
+#Slit2.3neg
+Slit2.3ptSPneg <-SpatialPoints(as.matrix(Slit2.3neg[, 1:2]))
+Slit2.3ptSPneg
+length(Slit2.3ptSPneg)
+plot(Slit2.3ptSPneg)
+
+
+
+plot(Slit2.3lineSPlist)
+str(Slit2.3lineSPlist)
+
+Slit2.3intersectionsNeg <- gProject(Slit2.3lineSPlist, Slit2.3ptSPneg)
+pointsOnLineNeg <- gInterpolate(Slit2.3lineSPlist, Slit2.3intersectionsNeg)
+
+#save a plot of the raw data
+png(paste("/Slit2-3neg_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Slit2.3lineSPlist, axes=TRUE)
+plot(Slit2.3ptSPneg, col = "blue", add = TRUE)
+plot(pointsOnLineNeg, col = "red", add = TRUE)
+
+dev.off()
+
+Slit2.3fractionNeg <- gProject(Slit2.3lineSPlist, Slit2.3ptSPneg, normalized = T)
+head(Slit2.3fractionNeg)
+length(Slit2.3fractionNeg)
+head(pointsOnLineNeg)
+
+#combine DCX positive and negative fractions to do density plots
+Slit2.3fractionPos <- as.data.frame(Slit2.3fractionPos)
+Slit2.3fractionPos$DCX <- "Positive"
+colnames(Slit2.3fractionPos) <- c("Distance", "DCX")
+head(Slit2.3fractionPos)
+
+Slit2.3fractionNeg <- as.data.frame(Slit2.3fractionNeg)
+Slit2.3fractionNeg$DCX <- "Negative"
+colnames(Slit2.3fractionNeg) <- c("Distance", "DCX")
+head(Slit2.3fractionNeg)
+
+Slit2.3fraction <- bind_rows(Slit2.3fractionPos, Slit2.3fractionNeg)
+Slit2.3fraction
+
+
+#density plot
+ggdensity(Slit2.3fraction,  "Distance", y = "..density..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Slit2-3_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Slit2.3fraction,  "Distance", y = "..count..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Slit2-3_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+```
+
+##Rlbp1
+```{r}
+
+#Rlbp1.1pos
+Rlbp1.1ptSPpos <-SpatialPoints(as.matrix(Rlbp1.1pos[, 1:2]))
+Rlbp1.1ptSPpos
+length(Rlbp1.1ptSPpos)
+plot(Rlbp1.1ptSPpos)
+
+
+Rlbp1.1dist <- Rlbp1.1dist %>% arrange(ID)
+Rlbp1.1lineSP <-Line(as.matrix(Rlbp1.1dist[, 1:2]))
+Rlbp1.1lineSPlist <- SpatialLines(list(Lines(Rlbp1.1lineSP, ID="a")))
+
+plot(Rlbp1.1lineSPlist)
+str(Rlbp1.1lineSPlist)
+
+Rlbp1.1intersectionsPos <- gProject(Rlbp1.1lineSPlist, Rlbp1.1ptSPpos)
+pointsOnLinePos <- gInterpolate(Rlbp1.1lineSPlist, Rlbp1.1intersectionsPos)
+
+#save a plot of the raw data
+png(paste("/Rlbp1-1pos_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Rlbp1.1lineSPlist, axes=TRUE)
+plot(Rlbp1.1ptSPpos, col = "blue", add = TRUE)
+plot(pointsOnLinePos, col = "red", add = TRUE)
+
+dev.off()
+
+Rlbp1.1fractionPos <- gProject(Rlbp1.1lineSPlist, Rlbp1.1ptSPpos, normalized = T)
+head(Rlbp1.1fractionPos)
+length(Rlbp1.1fractionPos)
+head(pointsOnLinePos)
+
+
+#Rlbp1.1neg
+Rlbp1.1ptSPneg <-SpatialPoints(as.matrix(Rlbp1.1neg[, 1:2]))
+Rlbp1.1ptSPneg
+length(Rlbp1.1ptSPneg)
+plot(Rlbp1.1ptSPneg)
+
+
+
+plot(Rlbp1.1lineSPlist)
+str(Rlbp1.1lineSPlist)
+
+Rlbp1.1intersectionsNeg <- gProject(Rlbp1.1lineSPlist, Rlbp1.1ptSPneg)
+pointsOnLineNeg <- gInterpolate(Rlbp1.1lineSPlist, Rlbp1.1intersectionsNeg)
+
+#save a plot of the raw data
+png(paste("/Rlbp1-1neg_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Rlbp1.1lineSPlist, axes=TRUE)
+plot(Rlbp1.1ptSPneg, col = "blue", add = TRUE)
+plot(pointsOnLineNeg, col = "red", add = TRUE)
+
+dev.off()
+
+Rlbp1.1fractionNeg <- gProject(Rlbp1.1lineSPlist, Rlbp1.1ptSPneg, normalized = T)
+head(Rlbp1.1fractionNeg)
+length(Rlbp1.1fractionNeg)
+head(pointsOnLineNeg)
+
+#combine DCX positive and negative fractions to do density plots
+Rlbp1.1fractionPos <- as.data.frame(Rlbp1.1fractionPos)
+Rlbp1.1fractionPos$DCX <- "Positive"
+colnames(Rlbp1.1fractionPos) <- c("Distance", "DCX")
+head(Rlbp1.1fractionPos)
+
+Rlbp1.1fractionNeg <- as.data.frame(Rlbp1.1fractionNeg)
+Rlbp1.1fractionNeg$DCX <- "Negative"
+colnames(Rlbp1.1fractionNeg) <- c("Distance", "DCX")
+head(Rlbp1.1fractionNeg)
+
+Rlbp1.1fraction <- bind_rows(Rlbp1.1fractionPos, Rlbp1.1fractionNeg)
+Rlbp1.1fraction
+
+
+#density plot
+ggdensity(Rlbp1.1fraction,  "Distance", y = "..density..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Rlbp1-1_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Rlbp1.1fraction,  "Distance", y = "..count..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Rlbp1-1_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+#Rlbp1.2
+#Rlbp1.2pos
+Rlbp1.2ptSPpos <-SpatialPoints(as.matrix(Rlbp1.2pos[, 1:2]))
+Rlbp1.2ptSPpos
+length(Rlbp1.2ptSPpos)
+plot(Rlbp1.2ptSPpos)
+
+
+Rlbp1.2dist <- Rlbp1.2dist %>% arrange(ID)
+Rlbp1.2lineSP <-Line(as.matrix(Rlbp1.2dist[, 1:2]))
+Rlbp1.2lineSPlist <- SpatialLines(list(Lines(Rlbp1.2lineSP, ID="a")))
+
+plot(Rlbp1.2lineSPlist)
+str(Rlbp1.2lineSPlist)
+
+Rlbp1.2intersectionsPos <- gProject(Rlbp1.2lineSPlist, Rlbp1.2ptSPpos)
+pointsOnLinePos <- gInterpolate(Rlbp1.2lineSPlist, Rlbp1.2intersectionsPos)
+
+#save a plot of the raw data
+png(paste("/Rlbp1-2pos_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Rlbp1.2lineSPlist, axes=TRUE)
+plot(Rlbp1.2ptSPpos, col = "blue", add = TRUE)
+plot(pointsOnLinePos, col = "red", add = TRUE)
+
+dev.off()
+
+Rlbp1.2fractionPos <- gProject(Rlbp1.2lineSPlist, Rlbp1.2ptSPpos, normalized = T)
+head(Rlbp1.2fractionPos)
+length(Rlbp1.2fractionPos)
+head(pointsOnLinePos)
+
+
+#Rlbp1.2neg
+Rlbp1.2ptSPneg <-SpatialPoints(as.matrix(Rlbp1.2neg[, 1:2]))
+Rlbp1.2ptSPneg
+length(Rlbp1.2ptSPneg)
+plot(Rlbp1.2ptSPneg)
+
+
+
+plot(Rlbp1.2lineSPlist)
+str(Rlbp1.2lineSPlist)
+
+Rlbp1.2intersectionsNeg <- gProject(Rlbp1.2lineSPlist, Rlbp1.2ptSPneg)
+pointsOnLineNeg <- gInterpolate(Rlbp1.2lineSPlist, Rlbp1.2intersectionsNeg)
+
+#save a plot of the raw data
+png(paste("/Rlbp1-2neg_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Rlbp1.2lineSPlist, axes=TRUE)
+plot(Rlbp1.2ptSPneg, col = "blue", add = TRUE)
+plot(pointsOnLineNeg, col = "red", add = TRUE)
+
+dev.off()
+
+Rlbp1.2fractionNeg <- gProject(Rlbp1.2lineSPlist, Rlbp1.2ptSPneg, normalized = T)
+head(Rlbp1.2fractionNeg)
+length(Rlbp1.2fractionNeg)
+head(pointsOnLineNeg)
+
+#combine DCX positive and negative fractions to do density plots
+Rlbp1.2fractionPos <- as.data.frame(Rlbp1.2fractionPos)
+Rlbp1.2fractionPos$DCX <- "Positive"
+colnames(Rlbp1.2fractionPos) <- c("Distance", "DCX")
+head(Rlbp1.2fractionPos)
+
+Rlbp1.2fractionNeg <- as.data.frame(Rlbp1.2fractionNeg)
+Rlbp1.2fractionNeg$DCX <- "Negative"
+colnames(Rlbp1.2fractionNeg) <- c("Distance", "DCX")
+head(Rlbp1.2fractionNeg)
+
+Rlbp1.2fraction <- bind_rows(Rlbp1.2fractionPos, Rlbp1.2fractionNeg)
+Rlbp1.2fraction
+
+
+#density plot
+ggdensity(Rlbp1.2fraction,  "Distance", y = "..density..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Rlbp1-2_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Rlbp1.2fraction,  "Distance", y = "..count..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Rlbp1-2_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+
+
+#Rlbp1.3
+#Rlbp1.3pos
+Rlbp1.3ptSPpos <-SpatialPoints(as.matrix(Rlbp1.3pos[, 1:2]))
+Rlbp1.3ptSPpos
+length(Rlbp1.3ptSPpos)
+plot(Rlbp1.3ptSPpos)
+
+
+Rlbp1.3dist <- Rlbp1.3dist %>% arrange(ID)
+Rlbp1.3lineSP <-Line(as.matrix(Rlbp1.3dist[, 1:2]))
+Rlbp1.3lineSPlist <- SpatialLines(list(Lines(Rlbp1.3lineSP, ID="a")))
+
+plot(Rlbp1.3lineSPlist)
+str(Rlbp1.3lineSPlist)
+
+Rlbp1.3intersectionsPos <- gProject(Rlbp1.3lineSPlist, Rlbp1.3ptSPpos)
+pointsOnLinePos <- gInterpolate(Rlbp1.3lineSPlist, Rlbp1.3intersectionsPos)
+
+#save a plot of the raw data
+png(paste("/Rlbp1-3pos_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Rlbp1.3lineSPlist, axes=TRUE)
+plot(Rlbp1.3ptSPpos, col = "blue", add = TRUE)
+plot(pointsOnLinePos, col = "red", add = TRUE)
+
+dev.off()
+
+Rlbp1.3fractionPos <- gProject(Rlbp1.3lineSPlist, Rlbp1.3ptSPpos, normalized = T)
+head(Rlbp1.3fractionPos)
+length(Rlbp1.3fractionPos)
+head(pointsOnLinePos)
+
+
+#Rlbp1.3neg
+Rlbp1.3ptSPneg <-SpatialPoints(as.matrix(Rlbp1.3neg[, 1:2]))
+Rlbp1.3ptSPneg
+length(Rlbp1.3ptSPneg)
+plot(Rlbp1.3ptSPneg)
+
+
+
+plot(Rlbp1.3lineSPlist)
+str(Rlbp1.3lineSPlist)
+
+Rlbp1.3intersectionsNeg <- gProject(Rlbp1.3lineSPlist, Rlbp1.3ptSPneg)
+pointsOnLineNeg <- gInterpolate(Rlbp1.3lineSPlist, Rlbp1.3intersectionsNeg)
+
+#save a plot of the raw data
+png(paste("/Rlbp1-3neg_rawPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width=8, height=6,units = "in", res=300)
+
+plot(Rlbp1.3lineSPlist, axes=TRUE)
+plot(Rlbp1.3ptSPneg, col = "blue", add = TRUE)
+plot(pointsOnLineNeg, col = "red", add = TRUE)
+
+dev.off()
+
+Rlbp1.3fractionNeg <- gProject(Rlbp1.3lineSPlist, Rlbp1.3ptSPneg, normalized = T)
+head(Rlbp1.3fractionNeg)
+length(Rlbp1.3fractionNeg)
+head(pointsOnLineNeg)
+
+#combine DCX positive and negative fractions to do density plots
+Rlbp1.3fractionPos <- as.data.frame(Rlbp1.3fractionPos)
+Rlbp1.3fractionPos$DCX <- "Positive"
+colnames(Rlbp1.3fractionPos) <- c("Distance", "DCX")
+head(Rlbp1.3fractionPos)
+
+Rlbp1.3fractionNeg <- as.data.frame(Rlbp1.3fractionNeg)
+Rlbp1.3fractionNeg$DCX <- "Negative"
+colnames(Rlbp1.3fractionNeg) <- c("Distance", "DCX")
+head(Rlbp1.3fractionNeg)
+
+Rlbp1.3fraction <- bind_rows(Rlbp1.3fractionPos, Rlbp1.3fractionNeg)
+Rlbp1.3fraction
+
+
+#density plot
+ggdensity(Rlbp1.3fraction,  "Distance", y = "..density..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Rlbp1-3_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+#histogram plot
+gghistogram(Rlbp1.3fraction,  "Distance", y = "..count..", fill="DCX", color="DCX", add="median", rug=T)
+ggsave(paste("/Rlbp1-3_histogramPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 8, height = 4, units = "in", dpi=300)
+
+
+```
+
+
+
+#Plot each RNAscope probe replicates together
+##Crym
+```{r}
+#Combine Crym fraction replicates into one table:
+
+Crym.1fraction <- as.data.frame(Crym.1fraction)
+Crym.1fraction$Replicate <- "1"
+colnames(Crym.1fraction) <- c("Distance", "Replicate")
+head(Crym.1fraction)
+
+Crym.2fraction <- as.data.frame(Crym.2fraction)
+Crym.2fraction$Replicate <- "2"
+colnames(Crym.2fraction) <- c("Distance", "Replicate")
+head(Crym.2fraction)
+
+Crym.3fraction <- as.data.frame(Crym.3fraction)
+Crym.3fraction$Replicate <- "3"
+colnames(Crym.3fraction) <- c("Distance", "Replicate")
+head(Crym.3fraction)
+
+CrymReplicates <- bind_rows(Crym.1fraction, Crym.2fraction, Crym.3fraction)
+CrymReplicates
+
+
+
+#Vertical density plot with each replicate
+ggdensity(CrymReplicates,  "Distance", y = "..density..", fill="Replicate", color="Replicate", add="median", rug=F, size=1.5, palette = c("#ff89ff", "#ff00ff", "#890089")) +
+rotate()
+
+#Save graph
+ggsave(paste("/CrymAllReplicates_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 8, units = "in", dpi=300)
+
+
+
+```
+
+
+
+
+##Urah
+
+```{r}
+#Combine Urah fraction replicates into one table:
+
+Urah.1fraction <- as.data.frame(Urah.1fraction)
+Urah.1fraction$Replicate <- "1"
+colnames(Urah.1fraction) <- c("Distance", "Replicate")
+head(Urah.1fraction)
+
+Urah.2fraction <- as.data.frame(Urah.2fraction)
+Urah.2fraction$Replicate <- "2"
+colnames(Urah.2fraction) <- c("Distance", "Replicate")
+head(Urah.2fraction)
+
+Urah.3fraction <- as.data.frame(Urah.3fraction)
+Urah.3fraction$Replicate <- "3"
+colnames(Urah.3fraction) <- c("Distance", "Replicate")
+head(Urah.3fraction)
+
+UrahReplicates <- bind_rows(Urah.1fraction, Urah.2fraction, Urah.3fraction)
+UrahReplicates
+
+
+
+#Vertical density plot with each replicate
+ggdensity(UrahReplicates,  "Distance", y = "..density..", fill="Replicate", color="Replicate", add="median", rug=F, size=1.5, palette = c("#ff89ff", "#ff00ff", "#890089")) +
+rotate()
+
+#Save graph
+ggsave(paste("/UrahAllReplicates_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 8, units = "in", dpi=300)
+
+
+
+```
+
+##Dio2
+
+```{r}
+#Combine Dio2 fraction replicates into one table:
+
+Dio2.1fraction <- as.data.frame(Dio2.1fraction)
+Dio2.1fraction$Replicate <- "1"
+colnames(Dio2.1fraction) <- c("Distance", "Replicate")
+head(Dio2.1fraction)
+
+Dio2.2fraction <- as.data.frame(Dio2.2fraction)
+Dio2.2fraction$Replicate <- "2"
+colnames(Dio2.2fraction) <- c("Distance", "Replicate")
+head(Dio2.2fraction)
+
+Dio2.3fraction <- as.data.frame(Dio2.3fraction)
+Dio2.3fraction$Replicate <- "3"
+colnames(Dio2.3fraction) <- c("Distance", "Replicate")
+head(Dio2.3fraction)
+
+Dio2Replicates <- bind_rows(Dio2.1fraction, Dio2.2fraction, Dio2.3fraction)
+Dio2Replicates
+
+
+
+#Vertical density plot with each replicate
+ggdensity(Dio2Replicates,  "Distance", y = "..density..", fill="Replicate", color="Replicate", add="median", rug=F, size=1.5, palette = c("#ff89ff", "#ff00ff", "#890089")) +
+rotate()
+
+#Save graph
+ggsave(paste("/Dio2AllReplicates_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 8, units = "in", dpi=300)
+
+
+
+```
+
+
+##Slit2
+
+```{r}
+#Combine Slit2 DCX+ fraction replicates into one table:
+
+Slit2.1fractionPos <- as.data.frame(Slit2.1fractionPos)
+Slit2.1fractionPos$Replicate <- "1"
+colnames(Slit2.1fractionPos) <- c("Distance","DCX", "Replicate")
+head(Slit2.1fractionPos)
+
+Slit2.2fractionPos <- as.data.frame(Slit2.2fractionPos)
+Slit2.2fractionPos$Replicate <- "2"
+colnames(Slit2.2fractionPos) <- c("Distance", "DCX", "Replicate")
+head(Slit2.2fractionPos)
+
+Slit2.3fractionPos <- as.data.frame(Slit2.3fractionPos)
+Slit2.3fractionPos$Replicate <- "3"
+colnames(Slit2.3fractionPos) <- c("Distance", "DCX", "Replicate")
+head(Slit2.3fractionPos)
+
+Slit2ReplicatesPos <- bind_rows(Slit2.1fractionPos, Slit2.2fractionPos, Slit2.3fractionPos)
+Slit2ReplicatesPos
+
+
+
+#Vertical density plot with each replicate
+ggdensity(Slit2ReplicatesPos,  "Distance", y = "..density..", fill="Replicate", color="Replicate", add="median", rug=F, size=1.5, palette = c( "#4ae54a", "#30cb00", "#0f9200")) +
+rotate()
+
+#Save graph
+ggsave(paste("/Slit2AllDCXPosReplicates_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 8, units = "in", dpi=300)
+
+
+
+
+
+#Combine Slit2 DCX- fraction replicates into one table:
+
+Slit2.1fractionNeg <- as.data.frame(Slit2.1fractionNeg)
+Slit2.1fractionNeg$Replicate <- "1"
+colnames(Slit2.1fractionNeg) <- c("Distance","DCX", "Replicate")
+head(Slit2.1fractionNeg)
+
+Slit2.2fractionNeg <- as.data.frame(Slit2.2fractionNeg)
+Slit2.2fractionNeg$Replicate <- "2"
+colnames(Slit2.2fractionNeg) <- c("Distance", "DCX", "Replicate")
+head(Slit2.2fractionNeg)
+
+Slit2.3fractionNeg <- as.data.frame(Slit2.3fractionNeg)
+Slit2.3fractionNeg$Replicate <- "3"
+colnames(Slit2.3fractionNeg) <- c("Distance", "DCX", "Replicate")
+head(Slit2.3fractionNeg)
+
+Slit2ReplicatesNeg <- bind_rows(Slit2.1fractionNeg, Slit2.2fractionNeg, Slit2.3fractionNeg)
+Slit2ReplicatesNeg
+
+
+
+#Vertical density plot with each replicate
+ggdensity(Slit2ReplicatesNeg,  "Distance", y = "..density..", fill="Replicate", color="Replicate", add="median", rug=F, size=1.5, palette = c("#ff89ff", "#ff00ff", "#890089")) +
+rotate()
+
+#Save graph
+ggsave(paste("/Slit2AllDCXNegReplicates_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 8, units = "in", dpi=300)
+
+```
+
+
+
+
+##Rlbp1
+```{r}
+#Combine Rlbp1 DCX+ fraction replicates into one table:
+
+Rlbp1.1fractionPos <- as.data.frame(Rlbp1.1fractionPos)
+Rlbp1.1fractionPos$Replicate <- "1"
+colnames(Rlbp1.1fractionPos) <- c("Distance","DCX", "Replicate")
+head(Rlbp1.1fractionPos)
+
+Rlbp1.2fractionPos <- as.data.frame(Rlbp1.2fractionPos)
+Rlbp1.2fractionPos$Replicate <- "2"
+colnames(Rlbp1.2fractionPos) <- c("Distance", "DCX", "Replicate")
+head(Rlbp1.2fractionPos)
+
+Rlbp1.3fractionPos <- as.data.frame(Rlbp1.3fractionPos)
+Rlbp1.3fractionPos$Replicate <- "3"
+colnames(Rlbp1.3fractionPos) <- c("Distance", "DCX", "Replicate")
+head(Rlbp1.3fractionPos)
+
+Rlbp1ReplicatesPos <- bind_rows(Rlbp1.1fractionPos, Rlbp1.2fractionPos, Rlbp1.3fractionPos)
+Rlbp1ReplicatesPos
+
+
+
+#Vertical density plot with each replicate
+ggdensity(Rlbp1ReplicatesPos,  "Distance", y = "..density..", fill="Replicate", color="Replicate", add="median", rug=F, size=1.5, palette = c( "#4ae54a", "#30cb00", "#0f9200")) +
+rotate()
+
+#Save graph
+ggsave(paste("/Rlbp1AllDCXPosReplicates_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 8, units = "in", dpi=300)
+
+
+
+
+
+#Combine Rlbp1 DCX- fraction replicates into one table:
+
+Rlbp1.1fractionNeg <- as.data.frame(Rlbp1.1fractionNeg)
+Rlbp1.1fractionNeg$Replicate <- "1"
+colnames(Rlbp1.1fractionNeg) <- c("Distance","DCX", "Replicate")
+head(Rlbp1.1fractionNeg)
+
+Rlbp1.2fractionNeg <- as.data.frame(Rlbp1.2fractionNeg)
+Rlbp1.2fractionNeg$Replicate <- "2"
+colnames(Rlbp1.2fractionNeg) <- c("Distance", "DCX", "Replicate")
+head(Rlbp1.2fractionNeg)
+
+Rlbp1.3fractionNeg <- as.data.frame(Rlbp1.3fractionNeg)
+Rlbp1.3fractionNeg$Replicate <- "3"
+colnames(Rlbp1.3fractionNeg) <- c("Distance", "DCX", "Replicate")
+head(Rlbp1.3fractionNeg)
+
+Rlbp1ReplicatesNeg <- bind_rows(Rlbp1.1fractionNeg, Rlbp1.2fractionNeg, Rlbp1.3fractionNeg)
+Rlbp1ReplicatesNeg
+
+
+
+#Vertical density plot with each replicate
+ggdensity(Rlbp1ReplicatesNeg,  "Distance", y = "..density..", fill="Replicate", color="Replicate", add="median", rug=F, size=1.5, palette = c("#ff89ff", "#ff00ff", "#890089")) +
+rotate()
+
+#Save graph
+ggsave(paste("/Rlbp1AllDCXNegReplicates_densityPlot_",format(Sys.time(), "%Y-%m-%d_%H-%M"), ".png", sep = ""), width = 4, height = 8, units = "in", dpi=300)
+
+```
+
+
+
