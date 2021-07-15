@@ -7,12 +7,19 @@ mkdir outs/g1
 mkdir outs/g2
 mkdir seurat
 
-mv GSM5039270_G1_CellRanger_outs_barcodes.tsv.gz outs/g1
-mv GSM5039270_G1_CellRanger_outs_features.tsv.gz outs/g1
-mv GSM5039270_G1_CellRanger_outs_matrix.mtx.gz outs/g1
+gunzip GSM5039270_G1_CellRanger_outs_barcodes.tsv.gz
+gunzip GSM5039270_G1_CellRanger_outs_features.tsv.gz
+gunzip GSM5039270_G1_CellRanger_outs_matrix.mtx.gz
+mv GSM5039270_G1_CellRanger_outs_barcodes.tsv outs/g1
+mv GSM5039270_G1_CellRanger_outs_features.tsv outs/g1
+mv GSM5039270_G1_CellRanger_outs_matrix.mtx outs/g1
 
-mv GSM5039270_G2_CellRanger_outs_barcodes.tsv.gz outs/g2
-mv GSM5039270_G2_CellRanger_outs_features.tsv.gz outs/g2
-mv GSM5039270_G2_CellRanger_outs_matrix.mtx.gz outs/g2
+gunzip GSM5039270_G2_CellRanger_outs_barcodes.tsv.gz 
+gunzip GSM5039270_G2_CellRanger_outs_features.tsv.gz
+gunzip GSM5039270_G2_CellRanger_outs_matrix.mtx.gz
+mv GSM5039270_G2_CellRanger_outs_barcodes.tsv outs/g2
+mv GSM5039270_G2_CellRanger_outs_features.tsv outs/g2
+mv GSM5039270_G2_CellRanger_outs_matrix.mtx outs/g2
 
-mv GSM5039270_scSeq.rds.gz seurat
+gunzip GSM5039270_scSeq.rds.gz
+mv GSM5039270_scSeq.rds seurat
