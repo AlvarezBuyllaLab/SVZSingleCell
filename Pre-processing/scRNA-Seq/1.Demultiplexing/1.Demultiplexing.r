@@ -1,9 +1,8 @@
 ---
-#title: "Redmond et al. 2021 - Step 1: Demultiplexing"
+#title: "Cebrian-Silla, Nascimento, Redmond, Mansky et al. 2021 - Step 1: Demultiplexing"
 ---
 
 # Setup
-
 library(Seurat)
 library(ShortRead)
 library(deMULTIplex)
@@ -14,8 +13,8 @@ library(stringdist)
 library(knitr)
 library(dplyr)
 library(ggplot2)
-library(deMULTIplex)
 library(future)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 
 # Reading the Cellranger output and Creating a Seurat Object
