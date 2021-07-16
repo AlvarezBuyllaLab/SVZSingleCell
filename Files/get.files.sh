@@ -8,14 +8,14 @@ mkdir outs/g2
 mkdir seurat
 
 
-mv GSM5039270_G1_CellRanger_outs_barcodes.tsv.gz outs/g1
-mv GSM5039270_G1_CellRanger_outs_features.tsv.gz outs/g1
-mv GSM5039270_G1_CellRanger_outs_matrix.mtx.gz outs/g1
+mv GSM5039270_G1_CellRanger_outs_barcodes.tsv.gz outs/g1/barcodes.tsv.gz
+mv GSM5039270_G1_CellRanger_outs_features.tsv.gz outs/g1/features.tsv.gz
+mv GSM5039270_G1_CellRanger_outs_matrix.mtx.gz outs/g1/matrix.mtx.gz
 
 
-mv GSM5039270_G2_CellRanger_outs_barcodes.tsv.gz outs/g2
-mv GSM5039270_G2_CellRanger_outs_features.tsv.gz outs/g2
-mv GSM5039270_G2_CellRanger_outs_matrix.mtx.gz outs/g2
+mv GSM5039270_G2_CellRanger_outs_barcodes.tsv.gz outs/g2/barcodes.tsv.gz
+mv GSM5039270_G2_CellRanger_outs_features.tsv.gz outs/g2/features.tsv.gz
+mv GSM5039270_G2_CellRanger_outs_matrix.mtx.gz outs/g2/matrix.mtx.gz
 
 gunzip GSM5039270_scSeq.rds.gz
 mv GSM5039270_scSeq.rds seurat
