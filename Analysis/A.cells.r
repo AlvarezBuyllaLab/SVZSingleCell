@@ -1,5 +1,5 @@
 ---
-title: "Analyzing A cells"
+#title: "Cebrian-Silla, Nascimento, Redmond, Mansky et al. 2021 - Analysis: A Cells"
 
 ---
 #setup
@@ -17,24 +17,18 @@ library(patchwork)
 library(dendextend)
 library(stats)
 library(remotes)
-#library(usethis)
-#library(devtools)
-library(rjson)
 library(readr)
 library(biomaRt)
 library(enrichplot)
-library(clusterProfiler)
 library(scales)
 library(tidyr)
 library(scico)
-install_github("taunometsalu/pheatmap")
-install_github("taunometsalu/clustvis/Rpackage", build_vignettes = TRUE)
-
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 
 #Loading the annotated Seurat Object
 
-exp <- readRDS("/data4/svz_10x/analysis/wc_2020/experiment.SCT+CCA_integrated_2020-06-08.rds")
+exp <- readRDS("../Files/S")
 Idents(exp) <- "integrated_snn_res.1.5"
 DimPlot(exp, label = T) + coord_fixed() + NoLegend()
 
