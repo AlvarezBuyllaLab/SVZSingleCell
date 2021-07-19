@@ -28,7 +28,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 #Loading the annotated Seurat Object
 
-exp <- readRDS("../Files/S")
+exp <- readRDS("../Files/seurat/GSM5039270_scSeq.rds")
 Idents(exp) <- "integrated_snn_res.1.5"
 DimPlot(exp, label = T) + coord_fixed() + NoLegend()
 
