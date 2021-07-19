@@ -1,8 +1,12 @@
 ---
-#title: "Cebrian-Silla, Nascimento, Redmond, Mansky et al. 2021 - Analysis: A Cells"
-output: rmarkdown::github_document
+title: 'Analysis: A Cells'
+output: github_document
 ---
-#setup
+
+**Cebrian-Silla, Nascimento, Redmond, Mansky et al. 2021**
+
+## Setup
+
 ```{r setup}
 library(knitr)
 library(future)
@@ -26,7 +30,8 @@ library(scico)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 ```
 
-#Loading the annotated Seurat Object
+## Loading the annotated Seurat Object
+
 ```{r}
 exp <- readRDS("../Files/seurat/GSM5039270_scSeq.rds")
 Idents(exp) <- "integrated_snn_res.1.5"
@@ -39,7 +44,8 @@ exp.a <- subset(exp, idents = c("0", "1", "4", "6", "15"))
 DimPlot(exp.lin, label = T) + coord_fixed() + NoLegend()
 ```
 
-#Subsetting A cells
+## Subsetting A cells
+
 ```{r}
 a.cells.palette <- c("#671313", "#9B1C1C", "#D93030", "#DF5353", "#EC9898")
 
@@ -66,10 +72,12 @@ DimPlot(exp, cells = a.cells, label=F, group.by = "Phase") +
   labs(title = "A Cells - Cell cycle labeling")
 ```
 
-##Checking gene expression
+## Checking gene expression
 
-#exp.a Markers
-##FindAllMarkers in exp.a
+### exp.a Markers 
+
+#### FindAllMarkers in exp.a
+
 ```{r}
 a.markers <- FindAllMarkers(exp.a, only.pos = T)
 
@@ -101,7 +109,8 @@ write.table(cluster0.markers, quote = F, row.names = F, col.names = F, "cluster0
   #Cluster6: Early neuroblasts
 ```
 
-####Plots
+#### Plots
+
 ```{r}
 #cluster 15
 p1 <- FeaturePlot(exp.a, features = cluster15.markers[1:9], combine = FALSE, pt.size = 0.6, order = T)
@@ -172,7 +181,9 @@ wrap_plots(Plot1, ncol = 3) +
     caption = "Code available on A.cells.Rmd")
 
 ```
-###Cluster 1 vs Cluster 0
+
+### Cluster 1 vs Cluster 0
+
 ```{r}
 Idents(exp.a) <- "integrated_snn_res.1.5"
 vxd.a.markers <- FindMarkers(exp.a, ident.1 = 1, ident.2 = 0)
@@ -183,7 +194,8 @@ v.a.markers
 d.a.markers
 ```
 
-####Plots
+#### Plots
+
 ```{r}
 #cluster 1
 p1 <- FeaturePlot(exp.a, features = v.a.markers[1:9], combine = FALSE, pt.size = 0.6, order = T)
@@ -217,8 +229,8 @@ wrap_plots(Plot1, nrow = 3) +
 VlnPlot(exp.a, features = d.a.markers[1:20], stack = T, flip = T, idents = c("1","0")) + NoLegend()
 ```
 
+## Assigning A cell identities
 
-#Assigning A cell identities
 ```{r}
 Idents(exp.a) <- "integrated_snn_res.1.5"
 v.acells <- WhichCells(exp.a, idents = 1)
@@ -238,8 +250,8 @@ a.id.markers <- FindAllMarkers(exp.a, only.pos = T)
 a.id.markers
 ```
 
+## Heatmap + Dendrogram
 
-#Heatmap + Dendrogram
 ```{r}
 Idents(exp.a) <- "integrated_snn_res.1.5"
 exp.a.heatmap <- SCTransform(exp.a, new.assay.name = "SCT2", variable.features.n = 20681, vars.to.regress = "percent.mt")
@@ -257,7 +269,8 @@ heatmap<- DoHeatmap(subset(exp.a.heatmap, downsample = 200), features = c(cluste
 heatmap
 ```
 
-#Feature plots for regional markers
+## Feature plots for regional markers
+
 ```{r}
 FeaturePlot(exp.a, features = "Slit2", order = T, pt.size = 0.7) + 
   scale_color_viridis(alpha = 1, option = "A") + 
@@ -265,7 +278,6 @@ FeaturePlot(exp.a, features = "Slit2", order = T, pt.size = 0.7) +
   xlim(-4.5, 3.5) + 
   ylim(-14, -2) +
   simple
-ggsave(filename = "slit2.png", height = 2, width = 2, scale = 2)
 
 FeaturePlot(exp.a, features = "Vax1", order = T, pt.size = 0.7) + 
   scale_color_viridis(alpha = 1, option = "A") + 
@@ -273,7 +285,7 @@ FeaturePlot(exp.a, features = "Vax1", order = T, pt.size = 0.7) +
   xlim(-4.5, 3.5) + 
   ylim(-14, -2) +
   simple
-ggsave(filename = "vax1.png", height = 2, width = 2, scale = 2)
+
 
 FeaturePlot(exp.a, features = "Pax6", order = T, pt.size = 0.7) + 
   scale_color_viridis(alpha = 1, option = "A") + 
@@ -281,7 +293,7 @@ FeaturePlot(exp.a, features = "Pax6", order = T, pt.size = 0.7) +
   xlim(-4.5, 3.5) + 
   ylim(-14, -2) +
   simple
-ggsave(filename = "pax6.png", height = 2, width = 2, scale = 2)
+
 
 FeaturePlot(exp.a, features = "Rlbp1", order = T, pt.size = 0.7) + 
   scale_color_viridis(alpha = 1, option = "A") + 
@@ -289,12 +301,13 @@ FeaturePlot(exp.a, features = "Rlbp1", order = T, pt.size = 0.7) +
   xlim(-4.5, 3.5) + 
   ylim(-14, -2) +
   NoAxes()
-ggsave(filename = "rlbp1.png", height = 2, width = 2, scale = 2)
+
 
 ```
 
-#Looking for DE genes (dataset-wide) in A cell clusters:
-```{r}
+## Looking for DE genes (dataset-wide) in A cell clusters:
+
+```{r eval=FALSE, include=FALSE}
 #Find All Markers
 all.markers <- FindAllMarkers(exp, only.pos = T)
 
@@ -312,8 +325,9 @@ write.table(cluster1.allmarkers, quote = F, row.names = F, col.names = F, "clust
 write.table(cluster0.allmarkers, quote = F, row.names = F, col.names = F, "cluster0.allmarkers.txt", sep=",")
 ```
 
-##Plotting DE genes in A cell clusters
-```{r}
+### Plotting DE genes in A cell clusters
+
+```{r eval=FALSE, include=FALSE}
 #cluster15
 p1 <- FeaturePlot(exp.a, features = cluster15.allmarkers[1:9], combine = FALSE, pt.size = 0.2, order = T)
 fix.sc <- scale_color_viridis(alpha = 1, option = "A") 
@@ -380,8 +394,9 @@ wrap_plots(Plot1, nrow = 3) +
 
 ```
 
-##GO analysis
-```{r}
+### GO analysis
+
+```{r eval=FALSE, include=FALSE}
 #GO analysis was performed by importing the markers from each cluster into pantherdb, using the .txt files created in this notebook.
 
 #In Pantherdb, exported all GO terms for DE genes in each cluster as a .txt file named "clusterX.allmarkers.txt" to a subfolder called "GO"
