@@ -1,0 +1,1 @@
+Run get.files.sh on terminal to download the CellRanger output files for the two gene expression libraries in the single-cell RNAseq dataset and the fully annotated Seurat object. After running the script, files will be moved to their respective folders.
