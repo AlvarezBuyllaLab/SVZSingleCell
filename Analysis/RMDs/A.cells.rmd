@@ -37,10 +37,10 @@ exp <- readRDS("../Files/seurat/GSM5039270_scSeq.rds")
 Idents(exp) <- "integrated_snn_res.1.5"
 DimPlot(exp, label = T) + coord_fixed() + NoLegend()
 
-exp.lin <- subset(exp, idents = c("14", "5", "22", "13", "12", "10", "16", "17", "8", "15", "1", "6", "4", "0"))
+exp.lin <- subset(exp, idents = c(14, 5, 22, 13, 12, 10, 16, 17, 8, 15, 1, 6, 4, 0))
 DimPlot(exp.lin, label = T) + coord_fixed() + NoLegend()
 
-exp.a <- subset(exp, idents = c("0", "1", "4", "6", "15"))
+exp.a <- subset(exp, idents = c(0, 1, 4, 6, 15))
 DimPlot(exp.lin, label = T) + coord_fixed() + NoLegend()
 ```
 
@@ -57,7 +57,7 @@ DimPlot(exp, group.by = "acells", label=T, shuffle = T, cols = a.cells.palette )
   xlim(-6, 7) + ylim(-15, 8) + 
   NoAxes() + 
   labs(title = "A Cells")
-ggsave
+
 
 DimPlot(exp, cells = a.cells, label=T, shuffle = T, cols = a.cells.palette ) + 
   xlim(-4.5, 3.5) + ylim(-14, -2) + 
@@ -88,12 +88,6 @@ cluster6.markers <- a.markers %>% filter(cluster==6 & avg_logFC >0 & pct.2 < cut
 cluster4.markers <- a.markers %>% filter(cluster==4 & avg_logFC >0 & pct.2 < cutoff) %>% pull(gene)
 cluster1.markers <- a.markers %>% filter(cluster==1 & avg_logFC >0 & pct.2 < cutoff) %>% pull(gene)
 cluster0.markers <- a.markers %>% filter(cluster==0 & avg_logFC >0 & pct.2 < cutoff) %>% pull(gene)
-
-write.table(cluster15.markers, quote = F, row.names = F, col.names = F, "cluster15.strictmarkers.txt", sep=",")
-write.table(cluster6.markers, quote = F, row.names = F, col.names = F, "cluster6.strictmarkers.txt", sep=",")
-write.table(cluster4.markers, quote = F, row.names = F, col.names = F, "cluster4.strictmarkers.txt", sep=",")
-write.table(cluster1.markers, quote = F, row.names = F, col.names = F, "cluster1.strictmarkers.txt", sep=",")
-write.table(cluster0.markers, quote = F, row.names = F, col.names = F, "cluster0.strictmarkers.txt", sep=",")
 
 #Judging by the number of markers, clusters 0 (dorsal), 1 (ventral), and 6 (proliferative) are very unique. Cluster 4 seems like a transitional identity
 
@@ -317,12 +311,6 @@ cluster6.allmarkers <- all.markers %>% filter(cluster==6) %>% pull(gene)
 cluster4.allmarkers <- all.markers %>% filter(cluster==4) %>% pull(gene)
 cluster1.allmarkers <- all.markers %>% filter(cluster==1) %>% pull(gene)
 cluster0.allmarkers <- all.markers %>% filter(cluster==0) %>% pull(gene)
-
-write.table(cluster15.allmarkers, quote = F, row.names = F, col.names = F, "cluster15.allmarkers.txt", sep=",")
-write.table(cluster6.allmarkers, quote = F, row.names = F, col.names = F, "cluster6.allmarkers.txt", sep=",")
-write.table(cluster4.allmarkers, quote = F, row.names = F, col.names = F, "cluster4.allmarkers.txt", sep=",")
-write.table(cluster1.allmarkers, quote = F, row.names = F, col.names = F, "cluster1.allmarkers.txt", sep=",")
-write.table(cluster0.allmarkers, quote = F, row.names = F, col.names = F, "cluster0.allmarkers.txt", sep=",")
 ```
 
 ### Plotting DE genes in A cell clusters
