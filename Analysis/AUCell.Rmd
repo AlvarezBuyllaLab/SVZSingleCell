@@ -21,7 +21,8 @@ library(tidyr)
 #Loading data
 ```{r}
 #We will use the one with only the neurogenic lineage
-exp.lin <- readRDS("/data4/marcos/WC_Mouse.2020/exp.lin.rds")
+exp <- readRDS("../../Files/seurat/GSM5039270_scSeq.rds")
+exp.lin <- subset(exp, idents = c("14", "5", "22", "13", "12", "10", "16", "17", "8", "15", "1", "6", "4", "0"))
 DimPlot(exp.lin) + coord_fixed()
 FeaturePlot(exp.lin, features = "Mt1") + coord_fixed()
 simple <- NoAxes() + NoLegend()
@@ -33,7 +34,7 @@ simple <- NoAxes() + NoLegend()
 
 ## preparing the gene sets: making the collection
 
-#ECells <- ?GeneSet(ECells, setName="Ependymal_Cells")
+#ECells <- GeneSet(ECells, setName="Ependymal_Cells")
 ## if there's another set of genes you want to test, you can add it here (e.g., BCells <- GeneSet(object, setName="B_Cells")
 ## if you did make multiple gene sets, instead of the following line of code, you can run something like CellTypes <- GeneSetCollection(ECells, BCells)
 #CellTypes <- GeneSetCollection(ECells)
@@ -92,7 +93,6 @@ auc.dorsal <- FeaturePlot(exp.lin, "dorsal.auc", pt.size = 0.3, cols = greens(9)
 auc.cells <- auc.ventral + auc.dorsal
 
 auc.cells + plot_layout(ncol = 2)
-ggsave("AUClineagescores.strict.png", scale = 2)
 ```
 
 ##Creating a Ventral-Dorsal Index
@@ -121,8 +121,6 @@ FeaturePlot(exp.lin, "ventrodorsal.index", cols = colsc(11), order = F, pt.size 
    xlim(-6, 7) +
    ylim(-15, 8) +
    NoAxes()
-
-ggsave("ventrodorsal.index.png", scale = 2)
 
 VlnPlot(obj = exp.lin, features = "ventrodorsal.index", pt.size = 0)
 RidgePlot(exp.lin, features = "ventrodorsal.index")
@@ -165,15 +163,8 @@ auc.violins <- ventral.auc.vln + dorsal.auc.vln + plot_annotation(title = "AUC S
 dv.index.violin <- VlnPlot(exp.lin, "ventrodorsal.index", pt.size = 0)
 
 lineage.dim + (lineages.split/auc.violins)
-ggsave("auc.labeling.png", scale =2, width = 5, height = 3)
 
 lineage.dim
-ggsave("lineage.dim.png", scale =2, width = 2, height = 2)
-```
-
-##Saving
-```{r}
-saveRDS(exp.lin, file = "exp.lin.ready2velo.rds")
 ```
 
 ```{r}
@@ -181,11 +172,10 @@ Idents(exp.lin) <- "lineage"
 exp.lin.dorsal <- subset(exp.lin, ident = "dorsal")
 exp.lin.ventral <- subset(exp.lin, ident = "ventral")
 
-saveRDS(exp.lin.dorsal, file = "exp.lin.dorsal.ready2velo.rds")
-saveRDS(exp.lin.ventral, file = "exp.lin.ventral.ready2velo.rds")
-
 DimPlot(exp.lin.ventral)
 ```
+
+
 #GO Analysis between dorsal and ventral lineages
 ```{r}
 Idents(exp.lin) <- "Lineage"
@@ -214,8 +204,6 @@ lin.markers.dorsal <- lin.markers %>% filter(avg_logFC > 0) %>%  top_n(10) %>% p
 lin.markers.ventral <- lin.markers  %>% filter(avg_logFC < 0) %>%  top_n(10) %>% pull(gene)
 
 heatmap <- DoHeatmap(subset(exp.lin.heatmap, downsample = 200), features = rev(c(lin.markers.dorsal, lin.markers.ventral)), assay =  SCT2, size = 3)
-
-ggsave("acells.heatmap.0.2threshold.png", scale =2, width = 4, height = 3)
 ```
 
 ##Dotplot
@@ -276,42 +264,6 @@ ggplot(df.all, aes(lineage, go)) +
   #scale_x_discrete(labels=c("Cluster 1" = "1", "Cluster 0" = "0", "Cluster 4" = "4", "Cluster 6" = "6", "Cluster 15" = "15")) +
   theme_minimal() + 
   theme(panel.grid.major = element_blank(), axis.title = element_blank(), legend.position = "bottom", legend.direction = "horizontal")
-
-#Exporting as a high-resolution png
-ggsave(filename = "lineage.go.dotplot.png", width = 3.4, height = 2.1, scale =2)
-
-
-
-
-#Pathways
-ventral_paths <- read_delim("/data4/marcos/WC_Mouse.2020/ventral.paths.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 11)
-colnames(ventral_paths) <- c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr")
-ventral_paths["lineage"] <- "Ventral"
-ventral_paths<- ventral_paths[1:5,]
-
-
-dorsal_paths <- read_delim("/data4/marcos/WC_Mouse.2020/dorsal.paths.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 11)
-colnames(dorsal_paths) <- c("go", "ref", "obs", "expected", "pos.neg", "fold.enrich", "raw.p.value", "fdr")
-
-dorsal_paths <- dorsal_paths %>% filter(go %in% ventral_paths$go)
-dorsal_paths["lineage"] <- "Dorsal"
-dorsal_paths$fold.enrich <- as.numeric(dorsal_paths$fold.enrich)
-dorsal_paths <- dorsal_paths %>% mutate(fold.enrich = replace_na(fold.enrich, 0))
-dorsal_paths$fold.enrich <- as.numeric(dorsal_paths$fold.enrich)
-
-paths <- rbind(ventral_paths, dorsal_paths, deparse.level = 0)
-paths <- paths %>% mutate(sig = ifelse(fdr < 0.05, T, F))
-df.all <- rbind(df.all, paths, deparse.level = 0)
-
-ggplot(paths, aes(lineage, go)) + 
-  geom_point(aes(col = sig, size = fold.enrich)) + 
-  scale_color_manual(name = NULL, labels = c("FDR p > 0.05", "FDR p < 0.05"), values = viridis(2, direction = -1)) + 
-  scale_size(name = "Fold enrichment") +
-  #scale_x_discrete(labels=c("Cluster 1" = "1", "Cluster 0" = "0", "Cluster 4" = "4", "Cluster 6" = "6", "Cluster 15" = "15")) +
-  theme_minimal() + 
-  theme(panel.grid.major = element_blank(), axis.title = element_blank(), legend.position = "bottom", legend.direction = "horizontal")
-
-ggsave(filename = "lineage.paths.dotplot.png", width = 2, height = 1.5, scale =2)
 ```
 
 
@@ -368,22 +320,18 @@ exp.d.allmarkers <- FindAllMarkers(exp.dorsal, only.pos = T)
 ```
 
 
-
-
 ```{r}
 Idents(exp.lin) <- "lineage"
 dv.markers <- FindAllMarkers(exp.lin, only.pos = T, logfc.threshold = 0.15)
 
 dorsal.lin.genes <- dv.markers %>% filter(cluster == "dorsal") %>% pull(gene)
-  write.table(dorsal.lin.genes, quote = F, row.names = F, col.names = F, "dorsal.lin.genes.txt", sep=",")
 
 ventral.lin.genes <- dv.markers %>% filter(cluster == "ventral") %>% pull(gene)
-  write.table(ventral.lin.genes, quote = F, row.names = F, col.names = F, "ventral.lin.genes.txt", sep=",")
 ```
 
 #GO for DE genes in dorsal/ventral lineages
 ```{r}
-lineage_go <- read_delim("/data4/marcos/WC_Mouse.2020/analysis (1).txt", 
+lineage_go <- read_delim("lineages.go.txt", 
     "\t", escape_double = FALSE, trim_ws = TRUE, 
     skip = 11)
 
@@ -462,60 +410,51 @@ auc.mito <- FeaturePlot(exp.a, "mito.auc", pt.size = 0.7, cols = viridis(100), o
             xlim(-4.5, 3.5) + 
             ylim(-14, -2) +
             simple
-ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/mito.auc.png", height = 2, width = 2, scale = 2)
 
 auc.mito.init <- FeaturePlot(exp.a, "mito.init.auc", pt.size = 0.7, cols = viridis(100), order = T) +
             coord_fixed() +
             xlim(-4.5, 3.5) + 
             ylim(-14, -2) +
             simple
-ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/mito.init.auc.png", height = 2, width = 2, scale = 2)
 
 auc.synapse <- FeaturePlot(exp.a, "synapse.auc", pt.size = 0.7, cols = viridis(100), order = T) +
                 coord_fixed() +
                 xlim(-4.5, 3.5) + 
                 ylim(-14, -2) +
                 simple
-ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/synapse.auc.png", height = 2, width = 2, scale = 2)
 
 auc.neuron.migration <- FeaturePlot(exp.a, "neuro.mig.auc", pt.size = 0.7, cols = viridis(100), order = T) +
                         coord_fixed() +
                         xlim(-4.5, 3.5) + 
                         ylim(-14, -2) +
                         simple
-ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/neuronmigration.auc.png", height = 2, width = 2, scale = 2)
 
 auc.axon.guide <- FeaturePlot(exp.a, "axon.guide.auc", pt.size = 0.7, cols = viridis(100), order = T) +
                   coord_fixed() +
                   xlim(-4.5, 3.5) + 
                   ylim(-14, -2) +
                   simple
-ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/axonguidance.auc.png", height = 2, width = 2, scale = 2)
 
 auc.dorsoventral <- FeaturePlot(exp.a, "dorsoventral.auc", pt.size = 0.7, cols = viridis(100), order = T) +
                 coord_fixed() +
                 xlim(-4.5, 3.5) + 
                 ylim(-14, -2) +
                 simple
-ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/dorsoventral.auc.png", height = 2, width = 2, scale = 2)
 
 auc.cortex.reg <- FeaturePlot(exp.a, "cortex.reg.auc", pt.size = 0.7, cols = viridis(100), order = T) +
                   coord_fixed() +
                   xlim(-4.5, 3.5) + 
                   ylim(-14, -2) +
                   simple
-ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/cortex.reg.auc.png", height = 2, width = 2, scale = 2)
 
 auc.postsynaptic.auc <- FeaturePlot(exp.a, "postsynaptic.auc", pt.size = 0.7, cols = viridis(100), order = T) +
                         coord_fixed() +
                         xlim(-4.5, 3.5) + 
                         ylim(-14, -2) +
                         NoAxes()
-ggsave(filename = "/data4/marcos/WC_Mouse.2020/A.cells/GO/postsynaptic.auc.png", height = 2, width = 2, scale = 2)
 
 #ViolinPlots
 Idents(exp.a) <- "integrated_snn_res.1.5"
 aucscores <- c("mito.auc", "mito.init.auc", "neuro.mig.auc", "axon.guide.auc", "synapse.auc", "postsynaptic.auc", "dorsoventral.auc", "cortex.reg.auc")
 VlnPlot(exp.a, features = aucscores, stack = T, flip = T) + NoLegend()
-ggsave("AUClineagescores.strict.png", width = 2, height = 6, scale = 2)
 ````
