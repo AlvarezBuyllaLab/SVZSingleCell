@@ -23,13 +23,9 @@ sNucRNA-Seq dataset: [Pre-processing/sNucRNA-Seq/](https://github.com/AlvarezBuy
 ## Dataset Analyses
 
 ### Figure 1 & Supplements
-
 Figure 1 & Supplement 2: [Analysis/BcellsVsAstrocytes.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/BcellsVsAstrocytes.Rmd)
 
 Supplement 3: [Analysis/sNucRNASeq_Fig1Supplement3.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/sNucRNASeq_Fig1Supplement3.Rmd)
-
-### Figure 2
-
 
 ### Figure 3 & Supplement
 [Analysis/BCellsAnalysis_Fig3_Fig3Supplement1.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/BcellsClusterAnalysis_Fig3_Fig3Supplement1.Rmd)
@@ -40,5 +36,4 @@ Supplement 3: [Analysis/sNucRNASeq_Fig1Supplement3.Rmd](https://github.com/Alvar
 [Analysis/Acell_NucleiLabelTransfer_Fig5.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/Acell_NucleiLabelTransfer_Fig5.Rmd)
 
 ### Figure 6 & Supplement
-
 [Analysis/AUCell.Rmd](https://github.com/AlvarezBuyllaLab/SVZSingleCell/blob/master/Analysis/AUCell.Rmd)
